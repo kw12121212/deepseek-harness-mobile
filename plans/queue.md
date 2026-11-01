@@ -1,0 +1,44 @@
+# 工作队列（项目总监维护）
+
+最后更新：2026-11-01 · 维护者：DSH 总监会话，Codex 与 agy 执行。
+
+一个条目 = 一个能独立提交、独立回滚的交付物。状态用 queued / in-progress / review / done。
+编号与 `docs/devlog/OPEN-ISSUES.md` 的 OI 对应，不另起一套。
+
+## 角色分工
+
+| 角色 | 负责 | 不负责 |
+| --- | --- | --- |
+| 总监（DSH 会话） | 拆任务、写验收标准、跑测试、审 diff、提交、维护台账 | 大规模前端实现 |
+| Codex（默认 `gpt-6-sol`，难点 `gpt-6.1-sol`） | 按 brief 实现并自测，交 diff | 改 AGENTS.md、push、动签名 |
+| agy（Gemini 4 Pro） | Compose 界面、视觉、动效 | 后端、`bridge/`、构建脚本 |
+| Yuri | 定优先级、决定 push | — |
+
+## 环境基线（2026-11-01 实测）
+
+- JDK 21.0.12 ✓，Android SDK（`~/Library/Android/sdk`，platforms + build-tools）✓，adb ✓，Gradle 9.4.1 已缓存 ✓。
+- `./gradlew :app:testDebugUnitTest --rerun` → **98 tests, 0 failures**（XML 计数）。
+- Go 未在 PATH，`cd bridge && go test -race ./...` 目前跑不了 → 归 OI-001。
+
+## 队列
+
+| # | 交付物 | 关联 | 执行 | 验收 |
+| --- | --- | --- | --- | --- |
+| Q1 | 会话归档 + 排序：先出方案，再分 2 个 commit 实现 | OI-005 | Codex 实现，总监审 | 单测通过 + 真机截图 + `git status` 干净 |
+| Q2 | Go 工具链恢复并实跑 `go test -race` / `go vet` | OI-001 | 总监 | 命令真实输出入 `docs/qa/` |
+| Q3 | 视觉回归脚本：pixel 截图逐像素对比 | — | Codex | 脚本对 `docs/qa/web-visual-fidelity/` 现状可跑通 |
+| Q4 | PR 模板 + 一 OI 一分支约定落地 | — | 总监 | `.github/pull_request_template.md` |
+| Q5 | 按 OI-005 继续：队列编辑/删除、附件上传/重试 | OI-005 | Codex / agy | 同 Q1 |
+
+## 每个条目的固定流程
+
+1. 总监写 brief：范围、涉及文件、验收命令、明确不做什么。
+2. 执行者实现并自测，只交 diff；不 push、不动 AGENTS.md。
+3. 总监复跑验收命令 → 看 diff → 提交（message 写清路径/原因/验证/OI 编号）。
+4. 台账 `OPEN-ISSUES.md` 与当日 devlog 同步更新，和代码同一个 commit 或紧随其后。
+
+## 额度与节奏
+
+- Codex 只做实现与方案，探索性读代码尽量由总监先做，brief 里直接给文件路径。
+- 例行任务用 `gpt-6-sol` + `model_reasoning_effort=medium`；设计取舍或审查才升 `gpt-6.1-sol`。
+- 单次任务控制在「一次能审完的 diff」（约 ≤300 行）；超了就拆。
