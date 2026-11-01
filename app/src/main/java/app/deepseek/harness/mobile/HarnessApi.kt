@@ -206,11 +206,11 @@ internal class HarnessApi(
     /** Whether current metadata is enough to construct a legal follow/page address. */
     fun isSessionAddressResolved(sessionId: String): Boolean = sessionAddress(sessionId) != null
 
-    private fun sessionAddress(sessionId: String): HarnessSessionAddress? = sessionMetadata[sessionId]?.let {
+    internal fun sessionAddress(sessionId: String): HarnessSessionAddress? = sessionMetadata[sessionId]?.let {
         resolveHarnessSessionAddress(it.id, it.origin, it.parentSessionId)
     }
 
-    private fun resolveSessionAddress(sessionId: String): HarnessSessionAddress {
+    internal fun resolveSessionAddress(sessionId: String): HarnessSessionAddress {
         sessionAddress(sessionId)?.let { return it }
         // Legacy callers may request history directly; consult the authoritative
         // directory before ever issuing a follow/page for an unknown id.

@@ -11,11 +11,51 @@ import okio.ByteString
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HarnessSessionArchiveTest {
+    @Test
+    fun unresolvedSessionAddressLoadsDirectoryThenReusesCache() {
+        val transport = ArchiveTransport()
+        val api = api(transport)
+        assertNull(api.sessionAddress("visible"))
+
+        val address = api.resolveSessionAddress("visible")
+
+        assertEquals("session", address.kind)
+        assertEquals("visible", address.toJson().getString("sessionId"))
+        assertEquals(SessionMenuDecision.SHOW, sessionMenuDecision(null, address.kind))
+        assertEquals("visible", api.resolveSessionAddress("visible").toJson().getString("sessionId"))
+        assertEquals(listOf("session/list"), transport.requests.map { it.getString("method") })
+    }
+
+    @Test
+    fun missingSessionAddressFailsWithoutBecomingMenuReady() {
+        val transport = ArchiveTransport()
+        val api = api(transport)
+
+        assertThrows(IOException::class.java) { api.resolveSessionAddress("missing") }
+
+        assertNull(api.sessionAddress("missing"))
+        assertEquals(SessionMenuDecision.RESOLVE, sessionMenuDecision(null, api.sessionAddress("missing")?.kind))
+        assertEquals(listOf("session/list"), transport.requests.map { it.getString("method") })
+    }
+
+    @Test
+    fun resolvingSubagentAddressKeepsMenuHidden() {
+        val transport = ArchiveTransport()
+        transport.sessionItems = JSONArray("""[{"sessionId":"child","origin":"subagent","parentSessionId":"parent","blank":false}]""")
+        val api = api(transport)
+
+        val address = api.resolveSessionAddress("child")
+
+        assertEquals("subagent", address.kind)
+        assertEquals(SessionMenuDecision.HIDE, sessionMenuDecision(null, address.kind))
+    }
+
     @Test
     fun ensureArchiveBaselineFetchesOncePerServer() {
         val transport = ArchiveTransport()

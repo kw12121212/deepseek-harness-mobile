@@ -4099,7 +4099,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showSessionActions(session: HarnessApi.Session) {
-        if (session.origin == "subagent" || !api.isSessionAddressResolved(session.id)) return
+        when (sessionMenuDecision(session.origin, api.sessionAddress(session.id)?.kind)) {
+            SessionMenuDecision.HIDE -> Unit
+            SessionMenuDecision.RESOLVE -> resolveSessionMenu(session)
+            SessionMenuDecision.SHOW -> showSessionActionMenu(session)
+        }
+    }
+
+    private fun showSessionActionMenu(session: HarnessApi.Session) {
         AlertDialog.Builder(this)
             .setTitle(session.title ?: tr("会话操作", "Session actions"))
             .setItems(arrayOf(tr("重命名", "Rename"), tr("Fork 会话", "Fork session"), tr("归档", "Archive"))) { _, which ->
@@ -4111,6 +4118,26 @@ class MainActivity : ComponentActivity() {
             }
             .setNegativeButton(tr("取消", "Cancel"), null)
             .show()
+    }
+
+    private fun resolveSessionMenu(session: HarnessApi.Session) {
+        val sourceServer = serverUrl
+        Toast.makeText(this, tr("正在解析会话…", "Resolving session…"), Toast.LENGTH_SHORT).show()
+        worker.execute {
+            try {
+                if (serverUrl != sourceServer) return@execute
+                val address = api.resolveSessionAddress(session.id)
+                mainHandler.post {
+                    if (serverUrl != sourceServer || isFinishing) return@post
+                    if (sessionMenuDecision(session.origin, address.kind) == SessionMenuDecision.SHOW) showSessionActionMenu(session)
+                }
+            } catch (error: Exception) {
+                mainHandler.post {
+                    if (serverUrl != sourceServer || isFinishing) return@post
+                    Toast.makeText(this, error.message ?: tr("无法解析会话地址", "Unable to resolve session address"), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun showArchivedSessionActions(session: HarnessApi.Session) {
