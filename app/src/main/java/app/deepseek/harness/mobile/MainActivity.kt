@@ -13,6 +13,7 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.ColorDrawable
@@ -36,6 +37,7 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.TouchDelegate
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -3376,6 +3378,18 @@ class MainActivity : ComponentActivity() {
             header.setOnClickListener {
                 details.visibility = if (details.visibility == View.VISIBLE) View.GONE else View.VISIBLE
                 header.contentDescription = if (details.visibility == View.VISIBLE) tr("$accessibilityTitle，点击收起", "$accessibilityTitle, tap to collapse") else tr("$accessibilityTitle，点击展开", "$accessibilityTitle, tap to expand")
+            }
+            // Row stays 34dp for the Web-calibrated density; grow only the touch area to the
+            // 48dp platform minimum so it stops being a sub-minimum target (OI-007).
+            outer.post {
+                val hit = Rect()
+                header.getHitRect(hit)
+                val grow = (dp(48) - hit.height()) / 2
+                if (grow > 0 && hit.height() > 0) {
+                    hit.top -= grow
+                    hit.bottom += grow
+                    outer.touchDelegate = TouchDelegate(hit, header)
+                }
             }
         }
         outer.addView(header, LinearLayout.LayoutParams(MATCH, dp(34)))
