@@ -2471,6 +2471,35 @@ class MainActivity : ComponentActivity() {
             runningStartedAt = null; composer.setText(""); setComposerEnabled(true); progress.visibility = View.GONE
     }
 
+    private fun showWorkspaceActions(workspace: HarnessApi.Workspace) {
+        val sourceServer = serverUrl
+        AlertDialog.Builder(this)
+            .setTitle(workspace.title)
+            .setItems(arrayOf(tr("重命名", "Rename"), tr("删除工作区", "Delete workspace"))) { _, which ->
+                if (serverUrl != sourceServer) return@setItems
+                when (which) {
+                    0 -> showRenameWorkspace(workspace)
+                    1 -> confirmDeleteWorkspace(workspace)
+                }
+            }
+            .setNegativeButton(tr("取消", "Cancel"), null)
+            .show()
+    }
+
+    private fun confirmDeleteWorkspace(workspace: HarnessApi.Workspace) {
+        val sourceServer = serverUrl
+        AlertDialog.Builder(this)
+            .setTitle(tr("删除工作区", "Delete workspace"))
+            .setMessage(tr("“${workspace.title}”只从列表移除，不删除会话或目录文件。", "“${workspace.title}” will only be removed from the list; sessions and directory files will not be deleted."))
+            .setPositiveButton(tr("删除", "Delete")) { _, _ ->
+                mutateWorkspace(sourceServer, tr("删除工作区失败", "Unable to delete workspace")) {
+                    api.deleteWorkspace(workspace.id)
+                }
+            }
+            .setNegativeButton(tr("取消", "Cancel"), null)
+            .show()
+    }
+
     private fun showRenameWorkspace(workspace: HarnessApi.Workspace) {
         val sourceServer = serverUrl
         val input = EditText(this).apply {
@@ -2492,11 +2521,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun renameWorkspace(workspaceId: String, title: String, sourceServer: String?) {
+        mutateWorkspace(sourceServer, tr("重命名工作区失败", "Unable to rename workspace")) {
+            api.renameWorkspace(workspaceId, title)
+        }
+    }
+
+    private fun mutateWorkspace(sourceServer: String?, failureMessage: String, block: () -> Unit) {
+        if (serverUrl != sourceServer) return
         progress.visibility = View.VISIBLE
         worker.execute {
             try {
                 if (serverUrl != sourceServer) return@execute
-                api.renameWorkspace(workspaceId, title)
+                block()
                 mainHandler.post {
                     if (serverUrl != sourceServer || isFinishing) return@post
                     progress.visibility = View.GONE
@@ -2506,7 +2542,7 @@ class MainActivity : ComponentActivity() {
                 mainHandler.post {
                     if (serverUrl != sourceServer || isFinishing) return@post
                     progress.visibility = View.GONE
-                    Toast.makeText(this, error.message ?: tr("重命名工作区失败", "Unable to rename workspace"), Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, error.message ?: failureMessage, Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -3954,7 +3990,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }.apply {
                     setOnLongClickListener {
-                        showRenameWorkspace(workspace)
+                        showWorkspaceActions(workspace)
                         true
                     }
                 })

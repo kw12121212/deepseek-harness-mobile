@@ -1,6 +1,7 @@
 package gateway
 
 var allowedRPC = map[string]bool{
+	"workspace/delete":         true,
 	"workspace/rename":         true,
 	"workspace/archiveSession": true, "workspace/unarchiveSession": true,
 	"session/list": true, "session/create": true, "session/page": true, "session/modelCatalog": true, "session/projections": true, "session/selectModel": true, "session/rename": true, "session/fork": true, "session/prompt": true, "session/cancel": true,
