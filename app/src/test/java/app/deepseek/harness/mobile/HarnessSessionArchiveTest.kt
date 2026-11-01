@@ -17,6 +17,92 @@ import org.junit.Test
 
 class HarnessSessionArchiveTest {
     @Test
+    fun sessionsRemainUnfilteredBeforeArchiveBaseline() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived")
+        val api = api(transport)
+
+        assertEquals(listOf("visible", "archived", "other"), api.sessions().map { it.id })
+        assertEquals(0, transport.workspaceFollowOpens)
+    }
+
+    @Test
+    fun ensureArchiveBaselineMakesArchiveFilteringEffective() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived")
+        val api = api(transport)
+
+        api.ensureArchiveBaseline()
+
+        assertEquals(listOf("visible", "other"), api.sessions().map { it.id })
+        assertEquals(1, transport.workspaceFollowOpens)
+        assertEquals(listOf("session/list"), transport.requests.map { it.getString("method") })
+    }
+
+    @Test
+    fun ensureArchiveBaselineFetchesOnceEvenWhenArchiveSetIsEmpty() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline()
+        val api = api(transport)
+
+        api.ensureArchiveBaseline()
+        api.ensureArchiveBaseline()
+
+        assertEquals(1, transport.workspaceFollowOpens)
+        assertEquals(emptySet<String>(), api.archivedSessionIds)
+    }
+
+    @Test
+    fun ensureArchiveBaselineFetchesForEachServerOnce() {
+        val transport = ArchiveTransport()
+        var server = "http://first"
+        val api = HarnessApi({ server }, transport = { transport })
+        transport.baseline = baseline("archived")
+        api.ensureArchiveBaseline()
+        assertEquals(listOf("visible", "other"), api.sessions().map { it.id })
+
+        server = "http://second"
+        transport.baseline = baseline("other")
+        api.ensureArchiveBaseline()
+        api.ensureArchiveBaseline()
+        assertEquals(listOf("visible", "archived"), api.sessions().map { it.id })
+
+        server = "http://first"
+        api.ensureArchiveBaseline()
+        assertEquals(listOf("visible", "other"), api.sessions().map { it.id })
+        assertEquals(2, transport.workspaceFollowOpens)
+    }
+
+    @Test
+    fun failedArchiveBaselineRemainsRetryableAndListIsAvailable() {
+        val transport = ArchiveTransport()
+        val api = api(transport)
+        transport.baseline = baseline().apply { getJSONObject("value").remove("archivedSessionIds") }
+
+        assertThrows(org.json.JSONException::class.java) { api.ensureArchiveBaseline() }
+        assertEquals(listOf("visible", "archived", "other"), api.sessions().map { it.id })
+        transport.baseline = baseline("archived")
+        api.ensureArchiveBaseline()
+
+        assertEquals(listOf("visible", "other"), api.sessions().map { it.id })
+        assertEquals(2, transport.workspaceFollowOpens)
+    }
+
+    @Test
+    fun workspaceBaselineAlreadyLoadedDoesNotNeedAnotherEnsureRequest() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived")
+        val api = api(transport)
+        api.workspaces()
+
+        api.ensureArchiveBaseline()
+
+        assertEquals(listOf("visible", "other"), api.sessions().map { it.id })
+        assertEquals(1, transport.workspaceFollowOpens)
+        assertEquals(listOf("session/list"), transport.requests.map { it.getString("method") })
+    }
+
+    @Test
     fun sessionSnapshotSplitsDirectoryWithOneRpcAndUpdatesMetadata() {
         val transport = ArchiveTransport()
         transport.baseline = baseline("archived", "missing")
@@ -290,6 +376,7 @@ class HarnessSessionArchiveTest {
     }
 
     private class ArchiveTransport : HarnessTransport {
+        var workspaceFollowOpens = 0
         var baseline = JSONObject()
         var mutationValue = JSONObject()
         var mutationError: JSONObject? = null
@@ -323,6 +410,7 @@ class HarnessSessionArchiveTest {
                     val frame = JSONObject(text)
                     if (frame.getString("type") == "open") {
                         assertEquals("workspace/follow", frame.getString("endpoint"))
+                        workspaceFollowOpens += 1
                         listener.onMessage(this, JSONObject().put("type", "item")
                             .put("streamId", frame.getString("streamId")).put("value", baseline).toString())
                     }

@@ -170,6 +170,12 @@ internal class HarnessApi(
 
     data class SessionSnapshot(val active: List<Session>, val archived: List<Session>)
 
+    fun ensureArchiveBaseline() {
+        synchronized(archivedSessionsByServer) {
+            if (!archivedSessionsByServer.containsKey(baseUrl())) workspaces()
+        }
+    }
+
     fun sessions(): List<Session> = sessionSnapshot().active
 
     fun archivedSessions(): List<Session> = sessionSnapshot().archived
