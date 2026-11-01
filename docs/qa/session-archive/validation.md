@@ -49,6 +49,30 @@
 5. 切换服务端再回来 → 归档集合不串台（`archivedSessionsByServer` 按 URL 隔离）。
 6. 截图存 `docs/qa/session-archive/`，与改动前对比：`python3 scripts/visual_diff.py before.png after.png`。
 
+## 真机验收（2026-11-01 23:00，Pixel 10 / 57151FDCR006YV）
+
+链路打通：`adb reverse tcp:3090 tcp:3090` 把手机 127.0.0.1:3090 指到本机 dshbridge；
+用 debug 证书（与设备上 `.qa` 包同签名 658DE1B6…）以 `applicationIdSuffix = ".qa"` 装上去，
+保留原有配对数据，版本 `1.1.2-qa`。
+
+| 步骤 | 结果 | 证据 |
+| --- | --- | --- |
+| 长按会话 → 菜单 | ✅ 显示 Rename / Fork session / **Archive** | [01](device/01-actions-menu.png) |
+| 点 Archive → 二次确认 | ✅ 文案 "Archive this session? It will be hidden from the session list." | [02](device/02-archive-confirm.png) |
+| 确认归档 | ✅ 会话从列表消失；当前会话被归档后自动跳到另一条 | [04](device/04-after-archive.png) |
+| 抽屉底部 | ✅ 出现 **Archived (1)** 折叠分区 | [03](device/03-archived-section.png) |
+| 展开归档区 + 取消归档 | ⏳ 未完成：坐标漂移点错两次，下次补 | — |
+
+注意：归档 RPC 需要 bridge 也更新。本机 dshbridge（state `qa-2026-11-01`）用当前源码重建后
+`workspace/archiveSession` 才通；旧 bridge 直接返回 `Private server HTTP 400`——这正好证明
+`allowed.go` 的精确白名单是生效的。
+
+## 真机发现的两个问题
+
+1. **未解析地址的会话，长按完全没反应**（不是禁用样式，是静默 return）。新连接后大多数会话都处于这个状态，
+   用户会以为长按坏了。应先打开会话或让 `showSessionActions` 懒解析后再弹菜单。
+2. **暗色主题下弹窗仍是浅色**（白底黑字），与 App 的深色界面割裂，也和 DSH Web 的深色对话框不一致。
+
 ## 已知取舍
 
 - 归档会话在 `session/list` 里仍然存在，客户端本地过滤；host 侧是否真的隐藏未验证。
