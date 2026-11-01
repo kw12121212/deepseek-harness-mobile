@@ -3825,14 +3825,13 @@ class MainActivity : ComponentActivity() {
             try {
                 if (serverUrl != sourceServer) return@execute
                 val workspaces = api.workspaces()
-                val active = api.sessions()
-                val archived = api.archivedSessions()
+                val snapshot = api.sessionSnapshot()
                 mainHandler.post {
                     if (serverUrl != sourceServer || isFinishing) return@post
                     drawerWorkspaces = workspaces
-                    sessions = active
-                    drawerArchivedSessions = archived
-                    if (archived.isEmpty()) drawerArchivedExpanded = false
+                    sessions = snapshot.active
+                    drawerArchivedSessions = snapshot.archived
+                    if (snapshot.archived.isEmpty()) drawerArchivedExpanded = false
                     if (drawerOverlay.visibility == View.VISIBLE) renderSessionList()
                 }
             } catch (error: Exception) {

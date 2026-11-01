@@ -168,20 +168,21 @@ internal class HarnessApi(
 
     class SettingsAccessForbidden : IOException("Harness settings access is forbidden")
 
-    fun sessions(): List<Session> {
-        val server = baseUrl()
-        val value = call("session/list", JSONObject())
-        val archived = archivedSessionsByServer[server].orEmpty()
-        return value.getJSONArray("items").objects().map(::parseSessionSummary).also { rows ->
-            rows.forEach { sessionMetadata[it.id] = it }
-        }.filterNot { it.id in archived }
-    }
+    data class SessionSnapshot(val active: List<Session>, val archived: List<Session>)
 
-    fun archivedSessions(): List<Session> {
+    fun sessions(): List<Session> = sessionSnapshot().active
+
+    fun archivedSessions(): List<Session> = sessionSnapshot().archived
+
+    fun sessionSnapshot(): SessionSnapshot {
         val server = baseUrl()
         val value = call("session/list", JSONObject())
         val archived = archivedSessionsByServer[server].orEmpty()
-        return value.getJSONArray("items").objects().map(::parseSessionSummary).filter { it.id in archived }
+        val summaries = value.getJSONArray("items").objects().map(::parseSessionSummary).also { rows ->
+            rows.forEach { sessionMetadata[it.id] = it }
+        }
+        val (archivedRows, activeRows) = summaries.partition { it.id in archived }
+        return SessionSnapshot(active = activeRows, archived = archivedRows)
     }
 
     /** Whether current metadata is enough to construct a legal follow/page address. */

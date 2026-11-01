@@ -8,12 +8,82 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HarnessSessionArchiveTest {
+    @Test
+    fun sessionSnapshotSplitsDirectoryWithOneRpcAndUpdatesMetadata() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived", "missing")
+        val api = api(transport)
+        api.workspaces()
+
+        val snapshot = api.sessionSnapshot()
+
+        assertEquals(listOf("visible", "other"), snapshot.active.map { it.id })
+        assertEquals(listOf(HarnessApi.Session("archived", null, null, null, 2, false, false)), snapshot.archived)
+        assertEquals(listOf("session/list"), transport.requests.map { it.getString("method") })
+        assertTrue(api.isSessionAddressResolved("visible"))
+        assertTrue(api.isSessionAddressResolved("archived"))
+    }
+
+    @Test
+    fun sessionSnapshotKeepsAllActiveWhenArchiveSetIsEmpty() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline()
+        val api = api(transport)
+        api.workspaces()
+
+        val snapshot = api.sessionSnapshot()
+
+        assertEquals(listOf("visible", "archived", "other"), snapshot.active.map { it.id })
+        assertEquals(emptyList<HarnessApi.Session>(), snapshot.archived)
+    }
+
+    @Test
+    fun sessionSnapshotPreservesUnarchivedDirectoryOrder() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived")
+        transport.sessionItems = JSONArray("""[
+          {"sessionId":"later","updatedAt":1,"blank":false},
+          {"sessionId":"archived","updatedAt":4,"blank":false},
+          {"sessionId":"earlier","updatedAt":9,"blank":false},
+          {"sessionId":"last","updatedAt":2,"blank":false}
+        ]""")
+        val api = api(transport)
+        api.workspaces()
+
+        assertEquals(listOf("later", "earlier", "last"), api.sessionSnapshot().active.map { it.id })
+    }
+
+    @Test
+    fun sessionSnapshotKeepsServerArchiveSetsIsolated() {
+        val transport = ArchiveTransport()
+        var server = "http://first"
+        val api = HarnessApi({ server }, transport = { transport })
+        transport.baseline = baseline("archived")
+        api.workspaces()
+        assertEquals(listOf("archived"), api.sessionSnapshot().archived.map { it.id })
+
+        server = "http://second"
+        assertEquals(emptyList<HarnessApi.Session>(), api.sessionSnapshot().archived)
+        transport.baseline = baseline("other")
+        api.workspaces()
+        val second = api.sessionSnapshot()
+        assertEquals(listOf("visible", "archived"), second.active.map { it.id })
+        assertEquals(listOf("other"), second.archived.map { it.id })
+
+        server = "http://first"
+        val first = api.sessionSnapshot()
+        assertEquals(listOf("visible", "other"), first.active.map { it.id })
+        assertEquals(listOf("archived"), first.archived.map { it.id })
+    }
+
     @Test
     fun archivedSessionsIsEmptyWhenArchiveSetIsEmpty() {
         val transport = ArchiveTransport()
@@ -225,15 +295,16 @@ class HarnessSessionArchiveTest {
         var mutationError: JSONObject? = null
         var beforeMutationReply: (() -> Unit)? = null
         val requests = mutableListOf<JSONObject>()
+        var sessionItems = JSONArray("""[
+          {"sessionId":"visible","updatedAt":3,"blank":false},
+          {"sessionId":"archived","updatedAt":2,"blank":false},
+          {"sessionId":"other","updatedAt":1,"blank":false}
+        ]""")
 
         override fun rpc(envelope: JSONObject): JSONObject {
             requests += envelope
             val result = if (envelope.getString("method") == "session/list") {
-                JSONObject("""{"ok":true,"value":{"items":[
-                  {"sessionId":"visible","updatedAt":3,"blank":false},
-                  {"sessionId":"archived","updatedAt":2,"blank":false},
-                  {"sessionId":"other","updatedAt":1,"blank":false}
-                ]}}""")
+                JSONObject().put("ok", true).put("value", JSONObject().put("items", sessionItems))
             } else {
                 beforeMutationReply?.invoke()
                 mutationError?.let { JSONObject().put("ok", false).put("error", it) }
