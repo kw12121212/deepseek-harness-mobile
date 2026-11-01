@@ -7,7 +7,7 @@ Open work is tracked in [OPEN-ISSUES.md](docs/devlog/OPEN-ISSUES.md).
 
 ## Native and wired
 
-- Session list, selection, creation, rename, fork, history, cancel, and periodic running-state refresh. Long-press a drawer session for rename/fork.
+- Session list, selection, creation, rename, fork, archive/unarchive, history, cancel, and periodic running-state refresh. Long-press a drawer session for rename/fork/archive; archived sessions sit in a collapsed 「已归档」 drawer section where long-press unarchives, and the archive baseline is loaded before the first session list render.
 - Remembered default workspace plus a manual workspace chooser for every new session.
 - Model selection and adapter-advertised Thinking effort through `session/selectModel`.
 - Queue and steer prompt delivery through the official `session/prompt` mode field.
@@ -35,8 +35,8 @@ Open work is tracked in [OPEN-ISSUES.md](docs/devlog/OPEN-ISSUES.md).
 
 ## Still needs a native surface
 
-- Session archive/unarchive, manual reorder, and queued-item edit/remove.
-- Workspace rename/delete/reorder.
+- Manual session reorder and queued-item edit/remove (`session/updateQueue` is available on the host but not yet wired).
+- Workspace delete/reorder (`workspace/rename` is wired through long-press on a drawer workspace header).
 - Agent preset read/copy/open/delete authoring screens.
 - Image/text attachments and upload failure/retry.
 - Complete goal editing, subagent tree, background jobs, schedules, workflow runs, interactive terminal, deliverables/downloads, skills management, a dynamic commands catalog, and settings schema editor. Existing terminal activity rendering and session ZIP export do not provide interactive terminals or deliverable downloads.
