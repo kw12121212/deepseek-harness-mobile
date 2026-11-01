@@ -698,7 +698,7 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(6), dp(8), dp(5))
             addView(iconAction(R.drawable.ic_sidebar_outline, tr("打开会话列表", "Open session list")) { showSessions() }, LinearLayout.LayoutParams(dp(48), dp(48)))
-            addView(LinearLayout(this@MainActivity).apply {
+            val titleCluster = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(6), 0, dp(6), 0)
@@ -726,7 +726,20 @@ class MainActivity : ComponentActivity() {
                     maxLines = 1
                 }
                 addView(statusView, LinearLayout.LayoutParams(WRAP, dp(32)).apply { marginStart = dp(6) })
-            }, LinearLayout.LayoutParams(0, dp(48), 1f))
+            }
+            addView(titleCluster, LinearLayout.LayoutParams(0, dp(48), 1f))
+            // The title text is 32dp tall but its click opens the model picker; grow only the
+            // touch rect to the cluster's 48dp height (OI-007).
+            titleCluster.post {
+                val hit = Rect()
+                titleView.getHitRect(hit)
+                val grow = (dp(48) - hit.height()) / 2
+                if (grow > 0 && hit.height() > 0) {
+                    hit.top -= grow
+                    hit.bottom += grow
+                    titleCluster.touchDelegate = TouchDelegate(hit, titleView)
+                }
+            }
             addView(buildContextSeat(), LinearLayout.LayoutParams(WRAP, dp(48)).apply { marginEnd = dp(2) })
             addView(iconAction(R.drawable.ic_new_session_harness, tr("新建会话", "New session")) { showNewSession() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         }, LinearLayout.LayoutParams(MATCH, 0, 1f))
