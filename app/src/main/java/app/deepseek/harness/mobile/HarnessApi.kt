@@ -27,6 +27,9 @@ internal class HarnessApi(
     private val transport: (() -> HarnessTransport)? = null,
 ) {
     private val sessionMetadata = java.util.concurrent.ConcurrentHashMap<String, Session>()
+    private val archivedSessionsByServer = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
+    val archivedSessionIds: Set<String>
+        get() = archivedSessionsByServer[baseUrl()].orEmpty()
 
     data class Session(
         val id: String,
@@ -166,10 +169,12 @@ internal class HarnessApi(
     class SettingsAccessForbidden : IOException("Harness settings access is forbidden")
 
     fun sessions(): List<Session> {
+        val server = baseUrl()
         val value = call("session/list", JSONObject())
+        val archived = archivedSessionsByServer[server].orEmpty()
         return value.getJSONArray("items").objects().map(::parseSessionSummary).also { rows ->
             rows.forEach { sessionMetadata[it.id] = it }
-        }
+        }.filterNot { it.id in archived }
     }
 
     /** Whether current metadata is enough to construct a legal follow/page address. */
@@ -204,6 +209,7 @@ internal class HarnessApi(
     }
 
     fun workspaces(): List<Workspace> {
+        val server = baseUrl()
         val value = firstStream("workspace/follow", JSONObject()).getJSONObject("value")
         return value.getJSONArray("items").objects().map { item ->
             Workspace(
@@ -212,7 +218,7 @@ internal class HarnessApi(
                 path = item.getString("path"),
                 sessionIds = item.getJSONArray("sessionIds").strings(),
             )
-        }
+        }.also { replaceArchivedSessionIds(server, value) }
     }
 
     fun listDirectory(path: String? = null): DirectoryListing {
@@ -420,6 +426,21 @@ internal class HarnessApi(
     fun renameSession(sessionId: String, title: String) {
         call("session/rename", JSONObject().put("sessionId", sessionId).put("title", title))
     }
+
+    fun archiveSession(sessionId: String, stopActivity: Boolean = false): Set<String> {
+        val server = baseUrl()
+        val snapshot = call("workspace/archiveSession", JSONObject().put("sessionId", sessionId).put("stopActivity", stopActivity))
+        return replaceArchivedSessionIds(server, snapshot)
+    }
+
+    fun unarchiveSession(sessionId: String): Set<String> {
+        val server = baseUrl()
+        val snapshot = call("workspace/unarchiveSession", JSONObject().put("sessionId", sessionId))
+        return replaceArchivedSessionIds(server, snapshot)
+    }
+
+    private fun replaceArchivedSessionIds(server: String, snapshot: JSONObject): Set<String> =
+        snapshot.getJSONArray("archivedSessionIds").strings().toSet().also { archivedSessionsByServer[server] = it }
 
     fun forkSession(sessionId: String, atSeq: Long? = null): String {
         val id = call("session/fork", JSONObject().put("sessionId", sessionId).apply {
@@ -1074,6 +1095,7 @@ internal fun JSONObject.optNullableString(name: String): String? =
 internal fun rc2Arguments(endpoint: String, payload: JSONObject): JSONObject = when (endpoint) {
     "session/list" -> JSONObject().put("_request", payload)
     "session/page", "session/create", "session/projections", "session/selectModel", "session/rename", "session/fork", "session/prompt", "session/cancel", "workspace/create" -> JSONObject().put("request", payload)
+    "workspace/archiveSession", "workspace/unarchiveSession" -> JSONObject().put("request", payload)
     "agentPresets/select" -> JSONObject().put("agentId", payload.getString("sessionId")).put("agentPreset", payload.getString("agentPreset"))
     "commands/execute" -> payload.getJSONObject("args").put("submittedAttachments", JSONArray())
     else -> payload
