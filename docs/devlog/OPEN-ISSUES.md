@@ -12,11 +12,11 @@
 | OI-006 | open | 完整目标编辑、子代理树、jobs、schedules、workflow、交互终端、交付物、skills 和通用设置仍缺原生面板；私有模式仅能到服务端电脑本地 Web 操作。 | 按实际移动工作流分批选择功能域；保留私有桥接不代理原生 Web 的边界。 | [功能清单](../../harness-feature-parity.md)、[Web 入口限制](../../app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt#L4974) |
 | OI-007 | open | 完整 TalkBack、少数小于 48dp 的触控区、更广设备验收、本地化和长历史性能仍有遗留。 | 无障碍：先按 [触控区静态审计](../qa/a11y-touch-targets/audit.md) 修 34dp 的活动折叠行（建议 TouchDelegate），再补 TalkBack 与设备验收；长会话性能需真机测量。 | [核心验收限制](../qa/dsh-rc2-core/validation.md)、[视觉验收边界](../qa/web-visual-fidelity/validation.md) |
 | OI-008 | open | 未确认发送的去重 ID 仅存内存，进程销毁后的持久恢复尚未实现或验证。 | 明确进程死亡后的发送恢复需求，再设计持久化与服务端确认机制，避免重复接纳。 | [发送身份实现](../../app/src/main/java/app/deepseek/harness/mobile/HarnessPromptSubmission.kt)、[合并前验证边界](../qa/merge-readiness/2026-10-12.md) |
-| OI-011 | open | 暗色主题下 AlertDialog 仍为浅色（白底），与深色主界面和 DSH Web 的深色弹窗不一致。 | 给对话框套 DayNight/Material3 主题或自定义 dialog theme；真机比对。 | [01](../qa/session-archive/device/01-actions-menu.png)、[02](../qa/session-archive/device/02-archive-confirm.png) |
 | OI-009 | open | Q10 session/delete 的接口、历史/目录副作用与恢复语义待确认；固定 rc.2 session-controller 的 service/commands/types 和本机 0.2.1-rc.5 安装包方法表均未发现该端点。尚未实现会话删除、未开放白名单。 | 总监提供实际方法表条目或实现路径后，确认合同并继续原 Q10 范围；不假设删除不可恢复。 | [合同核验与 REA 证据](../qa/session-delete-contract/validation.md)、[本轮记录](2026-11-01-9.md) |
 
 ## 已解决
 
 | 编号 | 状态 | 怎么解决 | 记录 | 怎么确认 |
 | --- | --- | --- | --- | --- |
+| OI-011 | resolved | 为原生 AlertDialog 指定独立深色主题，按应用浅色偏好局部覆盖；输入框使用 Dialog 上下文，未强制全局 night mode。 | [Q13 开发记录](2026-11-01-11.md) | 139 项单测与 Debug 构建通过；Pixel 系统浅色下菜单/确认框/重命名框均深色且文字、光标可见，见[验收](../qa/dialog-theme/validation.md)。 |
 | OI-010 | resolved | 会话地址未解析时长按菜单静默无反应：新连接后大多数会话处于该状态，用户会以为长按失效。 | 已由 Q12 修复：未解析先异步解析并提示，成功后弹菜单；subagent 仍不给菜单。 | [Q12 开发记录](2026-11-01-10.md)、[真机验收](../qa/session-menu-resolution/validation.md) |

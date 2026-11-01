@@ -5,6 +5,12 @@
     <color name="deepseek_blue">#2563EB</color>
     <color name="white">#FFFFFF</color>
 
+    <!-- Platform dialogs use the app palette, independently of system night mode. -->
+    <color name="dialog_surface">#373739</color>
+    <color name="dialog_on_surface">#F9FAFB</color>
+    <color name="dialog_muted">#ADB2B8</color>
+    <color name="dialog_accent">#7AAAFF</color>
+
     <!-- Material 3 fallback roles; the in-app Harness palette remains the product source. -->
     <color name="material_primary">#416FE6</color>
     <color name="material_on_primary">#FFFFFF</color>

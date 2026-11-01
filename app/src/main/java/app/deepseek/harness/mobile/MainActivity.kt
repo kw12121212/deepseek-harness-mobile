@@ -232,6 +232,7 @@ class MainActivity : ComponentActivity() {
             themePreference = AppThemePreference.fromStored(prefs.getString(PREF_THEME, null))
             darkTheme = themePreference.resolvesDark(systemDarkAppearance())
             palette = if (darkTheme) AppPalettes.DARK else AppPalettes.LIGHT
+            if (!darkTheme) theme.applyStyle(R.style.ThemeOverlay_DeepSeekRemote_LightDialogs, true)
             drawerGroupByWorkspace = prefs.getBoolean(PREF_DRAWER_GROUP_WORKSPACE, true)
             drawerOrderLastUpdated = prefs.getBoolean(PREF_DRAWER_ORDER_UPDATED, true)
             serverUrl = prefs.getString(PREF_SERVER_URL, null)?.let { saved ->
@@ -1719,7 +1720,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showAddWorkspaceDialog(initialPath: String? = null) {
-        val pathInput = EditText(this).apply {
+        val pathInput = dialogEditText().apply {
             hint = tr("主机绝对路径", "Absolute host path")
             setSingleLine(true)
             textSize = 13f
@@ -1888,7 +1889,7 @@ class MainActivity : ComponentActivity() {
         }
         newFolder.setOnClickListener {
             val listing = current ?: return@setOnClickListener
-            val name = EditText(this).apply {
+            val name = dialogEditText().apply {
                 hint = tr("文件夹名称", "Folder name")
                 setSingleLine(true)
                 setTextColor(COLOR_TEXT)
@@ -2193,6 +2194,8 @@ class MainActivity : ComponentActivity() {
     private fun systemDarkAppearance(configuration: Configuration = resources.configuration): Boolean =
         configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
+    private fun dialogEditText() = EditText(AlertDialog.Builder(this).context)
+
     private fun systemLanguageTag(configuration: Configuration = resources.configuration): String =
         configuration.locales.get(0)?.toLanguageTag().orEmpty()
 
@@ -2234,7 +2237,7 @@ class MainActivity : ComponentActivity() {
         val admission = BridgePairingAdmission(connectionEpoch)
         val required = serverUrl == null
         if (required) updateStatus(tr("未配置", "Not configured"), STATUS_VERIFY)
-        val addressInput = EditText(this).apply {
+        val addressInput = dialogEditText().apply {
             hint = tr("服务器地址或 dsh 登录链接", "Server address or dsh launch link")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             isSingleLine = true
@@ -2502,7 +2505,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showRenameWorkspace(workspace: HarnessApi.Workspace) {
         val sourceServer = serverUrl
-        val input = EditText(this).apply {
+        val input = dialogEditText().apply {
             setText(workspace.title)
             setSelection(text.length)
             setSingleLine(true)
@@ -3233,7 +3236,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showFeedbackNote(messageId: String) {
         val item = messageFeedback[messageId] ?: return
-        val input = EditText(this).apply {
+        val input = dialogEditText().apply {
             setText(item.note.orEmpty())
             setSelection(text.length)
             hint = tr("这条回答哪里好，或哪里有问题？（可选）", "What was good, or what went wrong? (optional)")
@@ -3583,7 +3586,7 @@ class MainActivity : ComponentActivity() {
             includeFontPadding = false
             gravity = Gravity.CENTER_VERTICAL
         }, LinearLayout.LayoutParams(MATCH, dp(18)).apply { topMargin = dp(20) })
-        val input = EditText(this).apply {
+        val input = dialogEditText().apply {
             hint = tr("输入 API Key", "Enter API key")
             textSize = 14f
             typeface = Typeface.create("sans-serif", Typeface.NORMAL)
@@ -4176,7 +4179,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showRenameSession(session: HarnessApi.Session) {
-        val input = EditText(this).apply {
+        val input = dialogEditText().apply {
             setText(session.title.orEmpty())
             setSelection(text.length)
             setSingleLine(true)
@@ -4864,7 +4867,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showSessionSearch() {
-        val input = EditText(this).apply {
+        val input = dialogEditText().apply {
             hint = tr("标题或目录", "Title or directory")
             setSingleLine(true)
             setTextColor(COLOR_TEXT)
