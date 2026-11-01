@@ -24,8 +24,9 @@
 
 | # | 交付物 | 关联 | 执行 | 验收 |
 | --- | --- | --- | --- | --- |
-| Q1 | 会话归档 + 排序：先出方案，再分 2 个 commit 实现 | OI-005 | Codex 实现，总监审 | 单测通过 + 真机截图 + `git status` 干净 |
-| Q2 | Go 工具链恢复并实跑 `go test -race` / `go vet` | OI-001 | 总监 | 命令真实输出入 `docs/qa/` |
+| Q1a | 会话归档数据层 + bridge 白名单｜**done** `3e5cd5d` | OI-005 | Codex 实现，总监复核 | 107 项单测 0 失败（总监复跑）+ go race/vet 通过 |
+| Q1b | 归档/恢复入口 + 排序 UI | OI-005 | agy（Gemini 4 Pro） | 真机截图 + 单测 + `git status` 干净 |
+| Q2 | Go 工具链：`~/.local/opt/go1.27.3/bin/go`，`go test -race`/`vet` 已实跑｜**done** | OI-001 | 总监 | 5 个包全 ok，vet 无输出 |
 | Q3 | 视觉回归脚本：pixel 截图逐像素对比 | — | Codex | 脚本对 `docs/qa/web-visual-fidelity/` 现状可跑通 |
 | Q4 | PR 模板 + 一 OI 一分支约定落地 | — | 总监 | `.github/pull_request_template.md` |
 | Q5 | 按 OI-005 继续：队列编辑/删除、附件上传/重试 | OI-005 | Codex / agy | 同 Q1 |

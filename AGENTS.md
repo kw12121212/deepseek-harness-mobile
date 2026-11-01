@@ -21,8 +21,9 @@ dshbridge 的命令与部署限制见 [bridge/README.md](bridge/README.md)。
 - Android 单元测试：`./gradlew :app:testDebugUnitTest --rerun`（测试数量以当轮 XML 验证记录为准）。
   Gradle 要写 `~/.gradle`，在 DSH 沙箱里需要放宽文件权限；不加 `--rerun` 会直接 UP-TO-DATE 跳过。
 - `bridge/` 的 Go 测试：`cd bridge && go test -race ./...`，再运行 `go vet ./...`。
-  本机已有临时工具链 `/tmp/dsh-private-transport-tools/go/bin/go`；此路径可能在清理临时目录后失效，
-  先确认工具链存在，缺失时安装或使用可用的 Go，不能把交叉编译当作实际测试通过。
+  本机 Go 在 `~/.local/opt/go1.27.3/bin/go`，默认 PATH 里没有，先
+  `export PATH="$HOME/.local/opt/go1.27.3/bin:$PATH"`。跑之前确认 `go version`；带缓存的结果不算通过，
+  必要时加 `-count=1`。
 - 真实设备验证走 `mobile-use` skill + ADB；Pixel 相关证据在 `docs/qa/`。
 
 ## 设计与 UI 技能（`.skill/`）
