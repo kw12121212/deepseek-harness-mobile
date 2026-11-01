@@ -2621,12 +2621,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun selectSession(session: HarnessApi.Session) {
+    private fun selectSession(session: HarnessApi.Session?) {
         refreshGeneration += 1
         requestRunning = false
         refreshQueued = false
         refreshQueuedFull = false
-        api.watchSession(session.id)
+        api.watchSession(session?.id)
         currentSession = session
         renderComposerSeat()
         currentModels = null
@@ -2639,9 +2639,10 @@ class MainActivity : ComponentActivity() {
         lastRenderedRunning = false
         renderHeader()
         messageContainer.removeAllViews()
-        emptyView.text = tr("正在载入会话…", "Loading session…")
+        emptyView.text = if (session == null) tr("还没有可显示的消息", "No messages to show yet") else tr("正在载入会话…", "Loading session…")
         emptyView.visibility = View.VISIBLE
-        refresh(showSpinner = true)
+        // Preserve an explicit empty selection instead of refresh's default fallback.
+        refresh(showSpinner = true, liveOnly = session == null)
     }
 
     private fun renderHeader() {
@@ -3968,8 +3969,12 @@ class MainActivity : ComponentActivity() {
         if (session.origin == "subagent" || !api.isSessionAddressResolved(session.id)) return
         AlertDialog.Builder(this)
             .setTitle(session.title ?: tr("会话操作", "Session actions"))
-            .setItems(arrayOf(tr("重命名", "Rename"), tr("Fork 会话", "Fork session"))) { _, which ->
-                if (which == 0) showRenameSession(session) else confirmForkSession(session)
+            .setItems(arrayOf(tr("重命名", "Rename"), tr("Fork 会话", "Fork session"), tr("归档", "Archive"))) { _, which ->
+                when (which) {
+                    0 -> showRenameSession(session)
+                    1 -> confirmForkSession(session)
+                    2 -> confirmArchiveSession(session)
+                }
             }
             .setNegativeButton(tr("取消", "Cancel"), null)
             .show()
@@ -4026,6 +4031,41 @@ class MainActivity : ComponentActivity() {
                 mainHandler.post { progress.visibility = View.GONE; Toast.makeText(this, error.message, Toast.LENGTH_LONG).show() }
             }
         }
+    }
+
+    private fun confirmArchiveSession(session: HarnessApi.Session) {
+        AlertDialog.Builder(this)
+            .setTitle(tr("归档会话", "Archive session"))
+            .setMessage(tr("归档此会话？归档后将从会话列表隐藏。", "Archive this session? It will be hidden from the session list."))
+            .setPositiveButton(tr("归档", "Archive")) { _, _ ->
+                val sourceServer = serverUrl
+                progress.visibility = View.VISIBLE
+                worker.execute {
+                    try {
+                        val archivedIds = api.archiveSession(session.id)
+                        mainHandler.post {
+                            if (serverUrl != sourceServer || isFinishing) return@post
+                            progress.visibility = View.GONE
+                            val archivingCurrent = currentSession?.id == session.id
+                            val orderedSessions = if (drawerOrderLastUpdated) sessions.sortedByDescending { it.updatedAt } else sessions
+                            val next = if (archivingCurrent) nextSessionAfterArchive(orderedSessions, session.id, archivedIds) else null
+                            sessions = sessions.filterNot { it.id == session.id || it.id in archivedIds }
+                            if (pendingOpenSessionId == session.id) pendingOpenSessionId = null
+                            if (archivingCurrent) selectSession(next)
+                            renderSessionList()
+                            Toast.makeText(this, tr("会话已归档", "Session archived"), Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (error: Exception) {
+                        mainHandler.post {
+                            if (serverUrl != sourceServer || isFinishing) return@post
+                            progress.visibility = View.GONE
+                            Toast.makeText(this, error.message ?: tr("归档失败", "Unable to archive session"), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(tr("取消", "Cancel"), null)
+            .show()
     }
 
     private fun closeDrawer() {
