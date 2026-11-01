@@ -18,5 +18,5 @@
 
 | 编号 | 状态 | 怎么解决 | 记录 | 怎么确认 |
 | --- | --- | --- | --- | --- |
-| OI-011 | resolved | 为原生 AlertDialog 指定独立深色主题，按应用浅色偏好局部覆盖；输入框使用 Dialog 上下文，未强制全局 night mode。 | [Q13 开发记录](2026-11-01-11.md) | 139 项单测与 Debug 构建通过；Pixel 系统浅色下菜单/确认框/重命名框均深色且文字、光标可见，见[验收](../qa/dialog-theme/validation.md)。 |
+| OI-011 | resolved | 暗色界面下 AlertDialog（菜单、确认、重命名输入框）仍是白底黑字，与 App 深色调色板和 DSH Web 不一致。 | 已由 Q13 修复：基主题指定 android:alertDialogTheme 深色弹窗，浅色偏好时用 overlay 切回；输入框改用 Dialog 上下文。 | [Q13 开发记录](2026-11-01-11.md)、[真机截图](../qa/session-archive/device/08-dialog-after-fix.png) |
 | OI-010 | resolved | 会话地址未解析时长按菜单静默无反应：新连接后大多数会话处于该状态，用户会以为长按失效。 | 已由 Q12 修复：未解析先异步解析并提示，成功后弹菜单；subagent 仍不给菜单。 | [Q12 开发记录](2026-11-01-10.md)、[真机验收](../qa/session-menu-resolution/validation.md) |
