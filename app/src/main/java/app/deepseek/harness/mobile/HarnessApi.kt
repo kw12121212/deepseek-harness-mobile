@@ -177,6 +177,13 @@ internal class HarnessApi(
         }.filterNot { it.id in archived }
     }
 
+    fun archivedSessions(): List<Session> {
+        val server = baseUrl()
+        val value = call("session/list", JSONObject())
+        val archived = archivedSessionsByServer[server].orEmpty()
+        return value.getJSONArray("items").objects().map(::parseSessionSummary).filter { it.id in archived }
+    }
+
     /** Whether current metadata is enough to construct a legal follow/page address. */
     fun isSessionAddressResolved(sessionId: String): Boolean = sessionAddress(sessionId) != null
 

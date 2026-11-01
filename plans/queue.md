@@ -26,7 +26,8 @@
 | --- | --- | --- | --- | --- |
 | Q1a | 会话归档数据层 + bridge 白名单｜**done** `3e5cd5d` | OI-005 | Codex 实现，总监复核 | 107 项单测 0 失败（总监复跑）+ go race/vet 通过 |
 | Q1b | 归档入口（长按菜单 + 确认 + 归档后选下一个会话）｜**done** `6c55e41` | OI-005 | agy 12 分钟未落盘 → 改派 Codex | 114 项单测 0 失败（总监复跑）+ assembleDebug 通过；真机装机受签名冲突阻塞 |
-| Q1c | 已归档视图 + 取消归档入口 | OI-005 | Codex / agy | 真机截图 + 单测 |
+| Q1c | 已归档折叠分区 + 取消归档｜**done** `85a33e9` + `931bd75` | OI-005 | Codex | 117 项单测 0 失败（总监复跑）；真机验收仍被签名冲突挡住 |
+| Q6 | 抽屉打开时 `session/list` 被调了两次（sessions + archivedSessions），合成一次并按 archivedIds 切分 | OI-005 | Codex | 抽屉打开只发一次 session/list，单测覆盖切分 |
 | Q2 | Go 工具链：`~/.local/opt/go1.27.3/bin/go`，`go test -race`/`vet` 已实跑｜**done** | OI-001 | 总监 | 5 个包全 ok，vet 无输出 |
 | Q3 | 视觉回归脚本 `scripts/visual_diff.py`｜**done** | — | 总监 | 同图 0.000%、异图报差异百分比、尺寸不一致直接失败（已实测） |
 | Q4 | PR 模板 + 一 OI 一分支约定落地｜**done** `69947fe` | — | 总监 | `.github/pull_request_template.md` 含 OI 关联、验证命令、回滚、no-push 检查 |

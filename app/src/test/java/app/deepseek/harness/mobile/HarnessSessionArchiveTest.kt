@@ -15,6 +15,51 @@ import org.junit.Test
 
 class HarnessSessionArchiveTest {
     @Test
+    fun archivedSessionsIsEmptyWhenArchiveSetIsEmpty() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline()
+        val api = api(transport)
+        api.workspaces()
+
+        assertEquals(emptyList<HarnessApi.Session>(), api.archivedSessions())
+    }
+
+    @Test
+    fun archivedSessionsIntersectsDirectoryAndPreservesSummaryOrder() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("other", "archived", "missing")
+        val api = api(transport)
+        api.workspaces()
+
+        assertEquals(
+            listOf(
+                HarnessApi.Session("archived", null, null, null, 2, false, false),
+                HarnessApi.Session("other", null, null, null, 1, false, false),
+            ),
+            api.archivedSessions(),
+        )
+    }
+
+    @Test
+    fun archivedSessionsKeepsServerArchiveSetsIsolated() {
+        val transport = ArchiveTransport()
+        var server = "http://first"
+        val api = HarnessApi({ server }, transport = { transport })
+        transport.baseline = baseline("archived")
+        api.workspaces()
+        assertEquals(listOf("archived"), api.archivedSessions().map { it.id })
+
+        server = "http://second"
+        assertEquals(emptyList<HarnessApi.Session>(), api.archivedSessions())
+        transport.baseline = baseline("other")
+        api.workspaces()
+        assertEquals(listOf("other"), api.archivedSessions().map { it.id })
+
+        server = "http://first"
+        assertEquals(listOf("archived"), api.archivedSessions().map { it.id })
+    }
+
+    @Test
     fun workspacesRetainsGlobalArchivedSessionIds() {
         val transport = ArchiveTransport()
         transport.baseline = baseline("archived", "ungrouped", "archived")

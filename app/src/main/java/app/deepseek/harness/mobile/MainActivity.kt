@@ -140,6 +140,8 @@ class MainActivity : ComponentActivity() {
 
     private var sessions = emptyList<HarnessApi.Session>()
     private var drawerWorkspaces = emptyList<HarnessApi.Workspace>()
+    private var drawerArchivedSessions = emptyList<HarnessApi.Session>()
+    private var drawerArchivedExpanded = false
     private var drawerSearchExpanded = false
     private var drawerSearchQuery = ""
     private var drawerGroupByWorkspace = true
@@ -2447,6 +2449,8 @@ class MainActivity : ComponentActivity() {
             lastCredentialFailureKey = null
             sessions = emptyList()
             drawerWorkspaces = emptyList()
+            drawerArchivedSessions = emptyList()
+            drawerArchivedExpanded = false
             manuallyExpandedWorkspaceKeys.clear()
             currentSession = null
             currentModels = null
@@ -3812,12 +3816,29 @@ class MainActivity : ComponentActivity() {
         drawerOverlay.visibility = View.VISIBLE
         drawerPanel.translationX = -drawerWidth.toFloat()
         drawerPanel.animate().translationX(0f).setDuration(180).start()
+        refreshDrawerSessions()
+    }
+
+    private fun refreshDrawerSessions() {
+        val sourceServer = serverUrl
         worker.execute {
-            val latest = runCatching { api.workspaces() }.getOrDefault(emptyList())
-            mainHandler.post {
-                if (latest.isNotEmpty()) {
-                    drawerWorkspaces = latest
+            try {
+                if (serverUrl != sourceServer) return@execute
+                val workspaces = api.workspaces()
+                val active = api.sessions()
+                val archived = api.archivedSessions()
+                mainHandler.post {
+                    if (serverUrl != sourceServer || isFinishing) return@post
+                    drawerWorkspaces = workspaces
+                    sessions = active
+                    drawerArchivedSessions = archived
+                    if (archived.isEmpty()) drawerArchivedExpanded = false
                     if (drawerOverlay.visibility == View.VISIBLE) renderSessionList()
+                }
+            } catch (error: Exception) {
+                mainHandler.post {
+                    if (serverUrl != sourceServer || isFinishing) return@post
+                    Toast.makeText(this, error.message ?: tr("无法加载会话列表", "Unable to load session list"), Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -3858,11 +3879,13 @@ class MainActivity : ComponentActivity() {
                 setTextColor(COLOR_MUTED)
                 setPadding(dp(38), dp(14), dp(8), dp(14))
             })
+            renderArchivedSessions()
             return
         }
 
         if (!drawerGroupByWorkspace) {
             visibleSessions.forEach { sessionList.addView(sessionRow(it)) }
+            renderArchivedSessions()
             return
         }
 
@@ -3908,6 +3931,28 @@ class MainActivity : ComponentActivity() {
                 })
                 if (expanded) members.forEach { session -> sessionList.addView(sessionRow(session)) }
             }
+        renderArchivedSessions()
+    }
+
+    private fun renderArchivedSessions() {
+        if (drawerArchivedSessions.isEmpty()) return
+        val count = drawerArchivedSessions.size
+        sessionList.addView(workspaceHeader(tr("已归档 ($count)", "Archived ($count)"), false, drawerArchivedExpanded) {
+            drawerArchivedExpanded = !drawerArchivedExpanded
+            renderSessionList()
+        })
+        if (!drawerArchivedExpanded) return
+        drawerArchivedSessions.forEach { session ->
+            sessionList.addView(sessionRow(session).apply {
+                contentDescription = "${tr("已归档会话", "Archived session")}: ${session.title ?: session.id}"
+                setOnClickListener(null)
+                isClickable = false
+                setOnLongClickListener {
+                    showArchivedSessionActions(session)
+                    true
+                }
+            })
+        }
     }
 
     private fun sessionRow(session: HarnessApi.Session, pendingSection: Boolean = false) = LinearLayout(this).apply {
@@ -3980,6 +4025,41 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
+    private fun showArchivedSessionActions(session: HarnessApi.Session) {
+        AlertDialog.Builder(this)
+            .setTitle(session.title ?: tr("会话操作", "Session actions"))
+            .setItems(arrayOf(tr("取消归档", "Unarchive"))) { _, _ -> unarchiveSession(session) }
+            .setNegativeButton(tr("取消", "Cancel"), null)
+            .show()
+    }
+
+    private fun unarchiveSession(session: HarnessApi.Session) {
+        val sourceServer = serverUrl
+        progress.visibility = View.VISIBLE
+        worker.execute {
+            try {
+                if (serverUrl != sourceServer) return@execute
+                val archivedIds = api.unarchiveSession(session.id)
+                mainHandler.post {
+                    if (serverUrl != sourceServer || isFinishing) return@post
+                    progress.visibility = View.GONE
+                    drawerArchivedSessions = drawerArchivedSessions.filter { it.id in archivedIds }
+                    sessions = (sessions + session).distinctBy { it.id }.filterNot { it.id in archivedIds }
+                    if (drawerArchivedSessions.isEmpty()) drawerArchivedExpanded = false
+                    renderSessionList()
+                    Toast.makeText(this, tr("已取消归档", "Session unarchived"), Toast.LENGTH_SHORT).show()
+                    refreshDrawerSessions()
+                }
+            } catch (error: Exception) {
+                mainHandler.post {
+                    if (serverUrl != sourceServer || isFinishing) return@post
+                    progress.visibility = View.GONE
+                    Toast.makeText(this, error.message ?: tr("取消归档失败", "Unable to unarchive session"), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     private fun showRenameSession(session: HarnessApi.Session) {
         val input = EditText(this).apply {
             setText(session.title.orEmpty())
@@ -4050,6 +4130,7 @@ class MainActivity : ComponentActivity() {
                             val orderedSessions = if (drawerOrderLastUpdated) sessions.sortedByDescending { it.updatedAt } else sessions
                             val next = if (archivingCurrent) nextSessionAfterArchive(orderedSessions, session.id, archivedIds) else null
                             sessions = sessions.filterNot { it.id == session.id || it.id in archivedIds }
+                            drawerArchivedSessions = (drawerArchivedSessions + session).distinctBy { it.id }.filter { it.id in archivedIds }
                             if (pendingOpenSessionId == session.id) pendingOpenSessionId = null
                             if (archivingCurrent) selectSession(next)
                             renderSessionList()
