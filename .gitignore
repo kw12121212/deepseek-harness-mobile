@@ -17,6 +17,9 @@ design-qa.md
 chatgpt-interaction-audit.md
 test-fixtures/
 
+# Local agent skills (third-party, do not publish)
+.skill/
+
 # OS and editor noise
 .DS_Store
 
