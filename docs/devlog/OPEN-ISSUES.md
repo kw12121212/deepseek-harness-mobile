@@ -12,6 +12,7 @@
 | OI-006 | open | 完整目标编辑、子代理树、jobs、schedules、workflow、交互终端、交付物、skills 和通用设置仍缺原生面板；私有模式仅能到服务端电脑本地 Web 操作。 | 按实际移动工作流分批选择功能域；保留私有桥接不代理原生 Web 的边界。 | [功能清单](../../harness-feature-parity.md)、[Web 入口限制](../../app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt#L4974) |
 | OI-007 | open | 完整 TalkBack、少数小于 48dp 的触控区、更广设备验收、本地化和长历史性能仍有遗留。 | 分别补无障碍/设备验收和长会话性能测量，再据实修复。 | [核心验收限制](../qa/dsh-rc2-core/validation.md)、[视觉验收边界](../qa/web-visual-fidelity/validation.md) |
 | OI-008 | open | 未确认发送的去重 ID 仅存内存，进程销毁后的持久恢复尚未实现或验证。 | 明确进程死亡后的发送恢复需求，再设计持久化与服务端确认机制，避免重复接纳。 | [发送身份实现](../../app/src/main/java/app/deepseek/harness/mobile/HarnessPromptSubmission.kt)、[合并前验证边界](../qa/merge-readiness/2026-10-12.md) |
+| OI-009 | open | Q10 session/delete 的接口、历史/目录副作用与恢复语义待确认；固定 rc.2 session-controller 的 service/commands/types 和本机 0.2.1-rc.5 安装包方法表均未发现该端点。尚未实现会话删除、未开放白名单。 | 总监提供实际方法表条目或实现路径后，确认合同并继续原 Q10 范围；不假设删除不可恢复。 | [合同核验与 REA 证据](../qa/session-delete-contract/validation.md)、[本轮记录](2026-11-01-9.md) |
 
 ## 已解决
 

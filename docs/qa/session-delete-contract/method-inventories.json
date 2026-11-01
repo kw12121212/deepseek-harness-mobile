@@ -1,0 +1,70 @@
+{
+  "public_rc2": [
+    {
+      "url": "https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/dsh-v0.2.0-rc.2/packages/api/session-controller/src/index.ts",
+      "sha256": "e66d55e979936a49a942cc68adc126a31c8ae59f7032596060721a6bf03338fc",
+      "line_count": 528,
+      "literal_remote_names": [
+        "list",
+        "search",
+        "create",
+        "selectModel",
+        "modelCatalog",
+        "openWorkspacePath",
+        "workspacePathApplications",
+        "rename",
+        "fork",
+        "prompt",
+        "attachment",
+        "updateQueue",
+        "cancel",
+        "page",
+        "projections"
+      ],
+      "has_SessionDelete_type": false
+    },
+    {
+      "url": "https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/dsh-v0.2.0-rc.2/packages/api/session-controller/src/commands.ts",
+      "sha256": "e5e9b7df2ff4d3477d9005548496e5ca1c2adaa69470aa6de399e822d683c7a7",
+      "line_count": 691,
+      "literal_remote_names": [],
+      "has_SessionDelete_type": false
+    },
+    {
+      "url": "https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/dsh-v0.2.0-rc.2/packages/api/session-controller/src/types.ts",
+      "sha256": "10e8460f23f897b6d65b6ce979e26d56e386589201e063bdb076b7a9b5322cf2",
+      "line_count": 626,
+      "literal_remote_names": [],
+      "has_SessionDelete_type": false
+    }
+  ],
+  "installed_module": {
+    "desktop_version": "0.2.1-rc.5",
+    "module_version": "0.2.1-rc.5",
+    "asar_sha256": "8dad52f295bdbe9fa71948fdf38ac2ce3c910213d3b89c37174b2af77db9fb31",
+    "module_path": "dsh/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js",
+    "module_sha256": "a9801acb577b03053c5d5a3191ff555c5f1d791d0acddec113bea4511e33b386",
+    "decorated_member_names": [
+      "attachment",
+      "canOpenWorkspacePath",
+      "cancel",
+      "control",
+      "create",
+      "follow",
+      "fork",
+      "initializeDefaultModel",
+      "list",
+      "modelCatalog",
+      "openWorkspacePath",
+      "page",
+      "projections",
+      "prompt",
+      "rename",
+      "search",
+      "selectModel",
+      "updateQueue",
+      "workspacePathApplications"
+    ],
+    "scope": "Static inspection of this installed module only; no runtime registry or unselected plugin coverage."
+  }
+}
