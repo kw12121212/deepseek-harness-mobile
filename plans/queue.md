@@ -25,9 +25,10 @@
 | # | 交付物 | 关联 | 执行 | 验收 |
 | --- | --- | --- | --- | --- |
 | Q1a | 会话归档数据层 + bridge 白名单｜**done** `3e5cd5d` | OI-005 | Codex 实现，总监复核 | 107 项单测 0 失败（总监复跑）+ go race/vet 通过 |
-| Q1b | 归档/恢复入口 + 排序 UI | OI-005 | agy（Gemini 4 Pro） | 真机截图 + 单测 + `git status` 干净 |
+| Q1b | 归档入口（长按菜单 + 确认 + 归档后选下一个会话）｜**done** `6c55e41` | OI-005 | agy 12 分钟未落盘 → 改派 Codex | 114 项单测 0 失败（总监复跑）+ assembleDebug 通过；真机装机受签名冲突阻塞 |
+| Q1c | 已归档视图 + 取消归档入口 | OI-005 | Codex / agy | 真机截图 + 单测 |
 | Q2 | Go 工具链：`~/.local/opt/go1.27.3/bin/go`，`go test -race`/`vet` 已实跑｜**done** | OI-001 | 总监 | 5 个包全 ok，vet 无输出 |
-| Q3 | 视觉回归脚本：pixel 截图逐像素对比 | — | Codex | 脚本对 `docs/qa/web-visual-fidelity/` 现状可跑通 |
+| Q3 | 视觉回归脚本 `scripts/visual_diff.py`｜**done** | — | 总监 | 同图 0.000%、异图报差异百分比、尺寸不一致直接失败（已实测） |
 | Q4 | PR 模板 + 一 OI 一分支约定落地 | — | 总监 | `.github/pull_request_template.md` |
 | Q5 | 按 OI-005 继续：队列编辑/删除、附件上传/重试 | OI-005 | Codex / agy | 同 Q1 |
 
