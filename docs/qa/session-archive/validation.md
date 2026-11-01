@@ -11,10 +11,13 @@
 | `85a33e9` | `archivedSessions()` 暴露已归档摘要 |
 | `931bd75` | 抽屉底部「已归档 (N)」折叠分区，行长按「取消归档」 |
 | `478a816` | 抽屉改用 `sessionSnapshot()`，一次 `session/list` |
+| `cc7ef1d` | 冷启动缺陷：首屏渲染前先 `ensureArchiveBaseline()`，避免归档会话先冒出来 |
 
 ## 已验收（可复现）
 
-- `./gradlew :app:testDebugUnitTest --rerun` → **121 tests，0 failures**（总监在 `65b5236` 复跑，XML 计数）。
+> 数字以 2026-11-01 22:50 在 `fefd935` 上的复跑为准。
+
+- `./gradlew :app:testDebugUnitTest --rerun` → **131 tests，0 failures**（总监在 `65b5236` 复跑，XML 计数）。
 - `cd bridge && go test -count=1 -race ./...` → 5/5 包 ok；`go vet` 无输出（`3e5cd5d` 时验证）。
 - `./gradlew :app:assembleDebug` → BUILD SUCCESSFUL。
 - `./gradlew :app:lintDebug` → 0 errors，84 warnings（全部为历史遗留建议类，无 error）。
