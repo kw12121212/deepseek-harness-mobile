@@ -29,6 +29,7 @@
 | Q1c | 已归档折叠分区 + 取消归档｜**done** `85a33e9` + `931bd75` | OI-005 | Codex | 117 项单测 0 失败（总监复跑）；真机验收仍被签名冲突挡住 |
 | Q6 | 抽屉单次 `session/list`（`sessionSnapshot()`）｜**done** `478a816` | OI-005 | Codex | 121 项单测 0 失败（总监复跑）；抽屉只发一次请求 |
 | Q7 | 冷启动归档基线：`ensureArchiveBaseline()` 在列表渲染前就绪｜**done** `cc7ef1d` | OI-005 | Codex | 127 项单测 0 失败（总监复跑） |
+| Q8 | workspace 改名（长按分组标题）｜**done** `3aaba7d` | OI-005 | Codex | 129 项单测 + gateway Go 测试通过（总监复跑）；RPC 形状已对 host 源码确认 |
 | Q2 | Go 工具链：`~/.local/opt/go1.27.3/bin/go`，`go test -race`/`vet` 已实跑｜**done** | OI-001 | 总监 | 5 个包全 ok，vet 无输出 |
 | Q3 | 视觉回归脚本 `scripts/visual_diff.py`｜**done** | — | 总监 | 同图 0.000%、异图报差异百分比、尺寸不一致直接失败（已实测） |
 | Q4 | PR 模板 + 一 OI 一分支约定落地｜**done** `69947fe` | — | 总监 | `.github/pull_request_template.md` 含 OI 关联、验证命令、回滚、no-push 检查 |
