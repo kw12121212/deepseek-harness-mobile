@@ -36,6 +36,13 @@
 | Q4 | PR 模板 + 一 OI 一分支约定落地｜**done** `69947fe` | — | 总监 | `.github/pull_request_template.md` 含 OI 关联、验证命令、回滚、no-push 检查 |
 | Q5 | 按 OI-005 继续：队列编辑/删除、附件上传/重试 | OI-005 | Codex / agy | 同 Q1 |
 
+## 暂停项
+
+- **Q10 会话删除 — 合同不成立，暂缓。** rc.2 的 SessionController 没有 `@Remote('delete')`，安装包 0.2.1-rc.5 的 Remote 成员表里也没有 `delete`；参数与副作用无法确认。
+  证据见 [docs/qa/session-delete-contract/validation.md](docs/qa/session-delete-contract/validation.md)（含方法清单、ASAR 哈希、REA evidence ID）。
+  不在未确认的合同上开放白名单、不加不可恢复的删除按钮。等拿到真实方法表再重启。
+- **OI-005 剩余项（手动排序、队列编辑/删除、附件上传/重试、workspace 排序）都需要新的 UI 面板**，而真机验收仍被 debug 签名冲突挡着。等 Yuri 决定是否卸载重装后再排。
+
 ## 每个条目的固定流程
 
 1. 总监写 brief：范围、涉及文件、验收命令、明确不做什么。
