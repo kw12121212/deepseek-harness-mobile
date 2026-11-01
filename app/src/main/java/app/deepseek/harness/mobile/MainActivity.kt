@@ -1551,13 +1551,15 @@ class MainActivity : ComponentActivity() {
         imageTintList = ColorStateList.valueOf(COLOR_DRAWER_SECONDARY)
         background = null
         contentDescription = description
-        setPadding(dp(6), dp(6), dp(6), dp(6))
+        // 48dp touch box with the same ~16dp glyph the 28dp button used; padding absorbs the
+        // extra space so the icon looks unchanged (OI-007).
+        setPadding(dp(16), dp(16), dp(16), dp(16))
         minimumWidth = 0
         minimumHeight = 0
         isClickable = true
         isFocusable = true
         setOnClickListener { action() }
-        layoutParams = LinearLayout.LayoutParams(dp(28), dp(28)).apply {
+        layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
             marginStart = dp(startMarginDp)
         }
     }
