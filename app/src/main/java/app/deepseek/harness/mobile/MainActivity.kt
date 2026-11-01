@@ -2471,6 +2471,47 @@ class MainActivity : ComponentActivity() {
             runningStartedAt = null; composer.setText(""); setComposerEnabled(true); progress.visibility = View.GONE
     }
 
+    private fun showRenameWorkspace(workspace: HarnessApi.Workspace) {
+        val sourceServer = serverUrl
+        val input = EditText(this).apply {
+            setText(workspace.title)
+            setSelection(text.length)
+            setSingleLine(true)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(tr("重命名工作区", "Rename workspace"))
+            .setView(input)
+            .setPositiveButton(tr("保存", "Save")) { _, _ ->
+                val title = input.text.toString().trim()
+                if (title.isNotEmpty() && title != workspace.title && serverUrl == sourceServer) {
+                    renameWorkspace(workspace.id, title, sourceServer)
+                }
+            }
+            .setNegativeButton(tr("取消", "Cancel"), null)
+            .show()
+    }
+
+    private fun renameWorkspace(workspaceId: String, title: String, sourceServer: String?) {
+        progress.visibility = View.VISIBLE
+        worker.execute {
+            try {
+                if (serverUrl != sourceServer) return@execute
+                api.renameWorkspace(workspaceId, title)
+                mainHandler.post {
+                    if (serverUrl != sourceServer || isFinishing) return@post
+                    progress.visibility = View.GONE
+                    refreshDrawerSessions()
+                }
+            } catch (error: Exception) {
+                mainHandler.post {
+                    if (serverUrl != sourceServer || isFinishing) return@post
+                    progress.visibility = View.GONE
+                    Toast.makeText(this, error.message ?: tr("重命名工作区失败", "Unable to rename workspace"), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     private fun workspaceHeader(title: String, active: Boolean, expanded: Boolean, onToggle: () -> Unit) = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -3910,6 +3951,11 @@ class MainActivity : ComponentActivity() {
                     if (!active) {
                         if (!manuallyExpandedWorkspaceKeys.add(key)) manuallyExpandedWorkspaceKeys.remove(key)
                         renderSessionList()
+                    }
+                }.apply {
+                    setOnLongClickListener {
+                        showRenameWorkspace(workspace)
+                        true
                     }
                 })
                 if (expanded) {

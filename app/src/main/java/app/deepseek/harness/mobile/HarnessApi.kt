@@ -235,6 +235,10 @@ internal class HarnessApi(
         }.also { replaceArchivedSessionIds(server, value) }
     }
 
+    fun renameWorkspace(id: String, title: String) {
+        call("workspace/rename", JSONObject().put("workspaceId", id).put("title", title))
+    }
+
     fun listDirectory(path: String? = null): DirectoryListing {
         val value = call("directoryPicker/list", JSONObject().apply {
             if (!path.isNullOrBlank()) put("path", path)
@@ -1109,7 +1113,7 @@ internal fun JSONObject.optNullableString(name: String): String? =
 internal fun rc2Arguments(endpoint: String, payload: JSONObject): JSONObject = when (endpoint) {
     "session/list" -> JSONObject().put("_request", payload)
     "session/page", "session/create", "session/projections", "session/selectModel", "session/rename", "session/fork", "session/prompt", "session/cancel", "workspace/create" -> JSONObject().put("request", payload)
-    "workspace/archiveSession", "workspace/unarchiveSession" -> JSONObject().put("request", payload)
+    "workspace/archiveSession", "workspace/unarchiveSession", "workspace/rename" -> JSONObject().put("request", payload)
     "agentPresets/select" -> JSONObject().put("agentId", payload.getString("sessionId")).put("agentPreset", payload.getString("agentPreset"))
     "commands/execute" -> payload.getJSONObject("args").put("submittedAttachments", JSONArray())
     else -> payload
