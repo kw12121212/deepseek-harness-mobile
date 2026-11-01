@@ -2516,6 +2516,13 @@ class MainActivity : ComponentActivity() {
         val cachedModelsAt = currentModelsLoadedAt
         worker.execute {
             try {
+                if (!liveOnly) {
+                    try {
+                        api.ensureArchiveBaseline()
+                    } catch (error: Exception) {
+                        android.util.Log.w("HarnessArchive", "Archive baseline unavailable; retry on next refresh", error)
+                    }
+                }
                 val newSessions = if (liveOnly) existingSessions else api.sessions()
                 val requestedId = pendingOpenSessionId
                 val selected = if (liveOnly) {
