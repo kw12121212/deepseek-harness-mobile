@@ -53,7 +53,7 @@
 | Q5b | 队列编辑/删除（`session/updateQueue`） | 大 | 目前 App 没有队列 UI，要从零做一个列表 |
 | Q5c | 附件上传/重试（`session/attachment`） | 大 | 同上，涉及权限与进度态 |
 | Q5d | workspace 排序（`workspace/insertBefore`） | 中 | 与 Q5a 同一套交互 |
-| Q14 | 本地 QA 变体：用 Gradle 属性代替临时改 suffix | 小 | 省掉每次验机的手工改动 |
+| Q14 | 本地 QA 变体：**done** `-PqaInstall=true` 打同证书 `.qa` 包 | 小 | 已实测：带 `-PqaInstall=true` 出 `...mobile.qa`，默认仍出 `...mobile.debug` |
 | Q15 | a11y：活动折叠行 34dp → TouchDelegate 扩到 48dp | 小 | 审计见 `docs/qa/a11y-touch-targets/audit.md` |
 
 ## 暂停

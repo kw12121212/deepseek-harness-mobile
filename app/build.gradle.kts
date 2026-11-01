@@ -36,8 +36,11 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            // -PqaInstall=true builds the same-cert package that the Pixel's .qa install can be
+            // replaced with (pairing data survives). Default stays .debug.
+            val qaInstall = providers.gradleProperty("qaInstall").orNull == "true"
+            applicationIdSuffix = if (qaInstall) ".qa" else ".debug"
+            versionNameSuffix = if (qaInstall) "-qa" else "-debug"
         }
         release {
             isMinifyEnabled = true
