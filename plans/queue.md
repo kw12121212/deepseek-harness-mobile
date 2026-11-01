@@ -62,6 +62,7 @@
 
 ## 每个条目的固定流程
 
+0. 开工先 `git branch --show-current`：不在 main 就先把已完成分支合回 main，别让 commit 散在 codex/* 上（2026-11-01 踩过）。
 1. 总监写 brief：范围、涉及文件、验收命令、明确不做什么。
 2. 执行者实现并自测，只交 diff；不 push、不动 AGENTS.md。
 3. 总监复跑验收命令 → 看 diff → 提交（message 写清路径/原因/验证/OI 编号）。
