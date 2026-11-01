@@ -17,6 +17,45 @@ import org.junit.Test
 
 class HarnessSessionArchiveTest {
     @Test
+    fun deleteWorkspaceUsesConfirmedNamedRequestShape() {
+        val transport = ArchiveTransport()
+        transport.mutationValue = JSONObject("""{"deleted":true}""")
+        val api = api(transport)
+
+        api.deleteWorkspace("workspace-id")
+
+        val envelope = transport.requests.single()
+        assertEquals("workspace/delete", envelope.getString("method"))
+        val args = envelope.getJSONObject("payload").getJSONObject("args")
+        assertEquals(setOf("request"), args.keys().asSequence().toSet())
+        val request = args.getJSONObject("request")
+        assertEquals(setOf("workspaceId"), request.keys().asSequence().toSet())
+        assertEquals("workspace-id", request.getString("workspaceId"))
+    }
+
+    @Test
+    fun deleteWorkspaceFailurePreservesWorkspaceAndSessionState() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived")
+        val api = api(transport)
+        api.workspaces()
+        api.sessionSnapshot()
+        transport.mutationError = JSONObject("""{"code":"workspace/not-found","message":"Workspace not found"}""")
+
+        val failure = assertThrows(HarnessApi.RemoteFailure::class.java) { api.deleteWorkspace("workspace") }
+
+        assertEquals("workspace/not-found", failure.code)
+        assertEquals(
+            listOf(HarnessApi.Workspace("workspace", "Project", "/project", listOf("visible", "archived"))),
+            api.workspaces(),
+        )
+        assertEquals(setOf("archived"), api.archivedSessionIds)
+        assertTrue(api.isSessionAddressResolved("visible"))
+        assertTrue(api.isSessionAddressResolved("archived"))
+        assertEquals(listOf("visible", "other"), api.sessions().map { it.id })
+    }
+
+    @Test
     fun renameWorkspaceUsesConfirmedNamedRequestShape() {
         val transport = ArchiveTransport()
         val api = api(transport)

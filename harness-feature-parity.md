@@ -36,7 +36,7 @@ Open work is tracked in [OPEN-ISSUES.md](docs/devlog/OPEN-ISSUES.md).
 ## Still needs a native surface
 
 - Manual session reorder and queued-item edit/remove (`session/updateQueue` is available on the host but not yet wired).
-- Workspace delete/reorder (`workspace/rename` is wired through long-press on a drawer workspace header).
+- Workspace reorder (`workspace/rename` and `workspace/delete` are wired through long-press on a drawer workspace header; delete only removes the registration, not sessions or files).
 - Agent preset read/copy/open/delete authoring screens.
 - Image/text attachments and upload failure/retry.
 - Complete goal editing, subagent tree, background jobs, schedules, workflow runs, interactive terminal, deliverables/downloads, skills management, a dynamic commands catalog, and settings schema editor. Existing terminal activity rendering and session ZIP export do not provide interactive terminals or deliverable downloads.
