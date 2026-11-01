@@ -29,7 +29,7 @@
 | Q1c | 已归档视图 + 取消归档入口 | OI-005 | Codex / agy | 真机截图 + 单测 |
 | Q2 | Go 工具链：`~/.local/opt/go1.27.3/bin/go`，`go test -race`/`vet` 已实跑｜**done** | OI-001 | 总监 | 5 个包全 ok，vet 无输出 |
 | Q3 | 视觉回归脚本 `scripts/visual_diff.py`｜**done** | — | 总监 | 同图 0.000%、异图报差异百分比、尺寸不一致直接失败（已实测） |
-| Q4 | PR 模板 + 一 OI 一分支约定落地 | — | 总监 | `.github/pull_request_template.md` |
+| Q4 | PR 模板 + 一 OI 一分支约定落地｜**done** `69947fe` | — | 总监 | `.github/pull_request_template.md` 含 OI 关联、验证命令、回滚、no-push 检查 |
 | Q5 | 按 OI-005 继续：队列编辑/删除、附件上传/重试 | OI-005 | Codex / agy | 同 Q1 |
 
 ## 每个条目的固定流程
