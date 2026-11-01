@@ -2,6 +2,21 @@ package gateway
 
 import "testing"
 
+func TestWorkspaceRenameRPCIsNarrowlyAllowed(t *testing.T) {
+	if !allowedRPC["workspace/rename"] {
+		t.Fatal("workspace rename RPC rejected")
+	}
+	for _, endpoint := range []string{"workspace/renameAnything", "workspace/delete", "workspace/insertBefore", "workspace/pinSession", "workspace/*"} {
+		if allowedRPC[endpoint] {
+			t.Errorf("unexpected workspace RPC allowed: %s", endpoint)
+		}
+	}
+	frame := `{"type":"open","streamId":"rename","endpoint":"workspace/rename","payload":{"args":{}}}`
+	if validFrame([]byte(frame)) {
+		t.Fatal("workspace rename unexpectedly allowed as a stream")
+	}
+}
+
 func TestSessionArchiveRPCsAreNarrowlyAllowed(t *testing.T) {
 	for _, endpoint := range []string{"workspace/archiveSession", "workspace/unarchiveSession"} {
 		if !allowedRPC[endpoint] {

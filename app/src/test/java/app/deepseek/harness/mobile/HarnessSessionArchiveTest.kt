@@ -17,6 +17,42 @@ import org.junit.Test
 
 class HarnessSessionArchiveTest {
     @Test
+    fun renameWorkspaceUsesConfirmedNamedRequestShape() {
+        val transport = ArchiveTransport()
+        val api = api(transport)
+
+        api.renameWorkspace("workspace-id", "新工作区")
+
+        val envelope = transport.requests.single()
+        assertEquals("workspace/rename", envelope.getString("method"))
+        val args = envelope.getJSONObject("payload").getJSONObject("args")
+        assertEquals(setOf("request"), args.keys().asSequence().toSet())
+        val request = args.getJSONObject("request")
+        assertEquals(setOf("workspaceId", "title"), request.keys().asSequence().toSet())
+        assertEquals("workspace-id", request.getString("workspaceId"))
+        assertEquals("新工作区", request.getString("title"))
+    }
+
+    @Test
+    fun renameWorkspaceFailureIsReportedWithoutChangingBaseline() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived")
+        val api = api(transport)
+        val existing = api.workspaces()
+        transport.mutationError = JSONObject("""{"code":"workspace/name-conflict","message":"Name already exists"}""")
+
+        val failure = assertThrows(HarnessApi.RemoteFailure::class.java) { api.renameWorkspace("workspace", "Taken") }
+
+        assertEquals("workspace/name-conflict", failure.code)
+        assertEquals("Project", existing.single().title)
+        assertEquals(
+            listOf(HarnessApi.Workspace("workspace", "Project", "/project", listOf("visible", "archived"))),
+            api.workspaces(),
+        )
+        assertEquals(setOf("archived"), api.archivedSessionIds)
+    }
+
+    @Test
     fun sessionsRemainUnfilteredBeforeArchiveBaseline() {
         val transport = ArchiveTransport()
         transport.baseline = baseline("archived")
