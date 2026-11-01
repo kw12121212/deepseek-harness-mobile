@@ -17,6 +17,18 @@ import org.junit.Test
 
 class HarnessSessionArchiveTest {
     @Test
+    fun ensureArchiveBaselineFetchesOncePerServer() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived")
+        val api = api(transport)
+
+        api.ensureArchiveBaseline()
+        api.ensureArchiveBaseline()
+
+        assertEquals(1, transport.workspaceFollowOpens)
+    }
+
+    @Test
     fun deleteWorkspaceUsesConfirmedNamedRequestShape() {
         val transport = ArchiveTransport()
         transport.mutationValue = JSONObject("""{"deleted":true}""")

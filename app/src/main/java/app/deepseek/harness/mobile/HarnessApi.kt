@@ -170,9 +170,21 @@ internal class HarnessApi(
 
     data class SessionSnapshot(val active: List<Session>, val archived: List<Session>)
 
+    private val archiveBaselineLoading = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    /**
+     * Loads the archive baseline for the current server once. Does not hold a monitor across the
+     * network call: a second caller returns immediately while the first is still in flight, and a
+     * failed attempt clears the guard so the next refresh retries.
+     */
     fun ensureArchiveBaseline() {
-        synchronized(archivedSessionsByServer) {
-            if (!archivedSessionsByServer.containsKey(baseUrl())) workspaces()
+        val server = baseUrl()
+        if (archivedSessionsByServer.containsKey(server)) return
+        if (archiveBaselineLoading.putIfAbsent(server, true) != null) return
+        try {
+            workspaces()
+        } finally {
+            archiveBaselineLoading.remove(server)
         }
     }
 
