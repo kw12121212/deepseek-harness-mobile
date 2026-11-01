@@ -28,6 +28,18 @@
 设备上已安装的 `app.deepseek.harness.mobile.debug` 由另一签名产生，与本机 debug keystore 不一致。
 没有执行卸载（会清掉设备上的 App 数据），也没有改动签名配置。
 
+
+## 真机为什么连不上（2026-11-01 22:55 实测）
+
+不只是签名问题，链路本身没通：
+
+- 设备上 `.qa` 包可调试，`run-as` 读到 `shared_prefs/deepseek_remote_preferences.xml`：
+  `server_base_url = http://127.0.0.1:3090`——App 连的是**手机本机的 dshbridge**。
+- `adb shell pm list packages` 里没有任何 bridge 包；`/proc/net/tcp` 里 3090（0x0C12）没有监听。
+- 两台包（`.qa`/`.debug`）启动后都是 "Connection failed"，与上面一致。
+
+结论：真机验收要同时满足两件事——① 能装上新构建（签名或新 applicationId），② 手机上跑起 dshbridge 并连得上上游（OI-004 的部署工作）。
+
 ## 解除阻塞后要跑的手工验收
 
 1. `./gradlew :app:assembleDebug`，装到 Pixel 10（需要先解决签名冲突）。

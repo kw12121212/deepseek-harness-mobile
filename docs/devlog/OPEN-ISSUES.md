@@ -4,7 +4,7 @@
 
 | 编号 | 状态 | 现象 / 影响 | 下一步 | 证据 |
 | --- | --- | --- | --- | --- |
-| OI-001 | open | SDK/Gradle/Go/ADB 已可用：Android 131 项单测、Debug 构建和前一轮 Go race/vet 已实跑通过；Pixel 现有 Debug 包与本机构建签名不同，安装返回 INSTALL_FAILED_UPDATE_INCOMPATIBLE，新版 UI 真机验收受阻；lint 已复验：0 errors / 84 warnings，全部为历史建议类（UseKtx/SetTextI18n 等），无 error。 | 补真机验收：需 Yuri 决定卸载现有 Debug 包重装（会清 App 数据），或提供与本机构建匹配的签名包；本轮不改签名、不卸载。 | [Q1c 验证](2026-11-01-4.md)、[数据层验证](2026-11-01-2.md)、[构建配置](../../app/build.gradle.kts) |
+| OI-001 | open | SDK/Gradle/Go/ADB 已可用：Android 131 项单测、Debug 构建和前一轮 Go race/vet 已实跑通过；Pixel 现有 Debug 包与本机构建签名不同，安装返回 INSTALL_FAILED_UPDATE_INCOMPATIBLE，新版 UI 真机验收受阻；lint 已复验：0 errors / 84 warnings，全部为历史建议类（UseKtx/SetTextI18n 等），无 error。 | 补真机验收需要两件事同时成立：① 能装上新构建（卸载重装、匹配签名或新 applicationId）；② 手机上跑起 dshbridge 并连上上游（见 [归档验收](../qa/session-archive/validation.md#真机为什么连不上2026-11-01-2255-实测)）。 | [Q1c 验证](2026-11-01-4.md)、[数据层验证](2026-11-01-2.md)、[构建配置](../../app/build.gradle.kts) |
 | OI-002 | open | 计划审阅、多选、timed → continued 有源码/单测/手机注入验证，真实 Host 发出和调度尚未逐项端到端复测。 | 在隔离 QA 会话补真实 Host 三类交互与重连验收，保持任务与回答身份关联。 | [交互验收](../qa/interaction-parity/validation.md) |
 | OI-003 | open | 源码为 1.1.2/code 8，公开 APK 仍为 v1.1.0；新包名迁移后的正式签名发行尚未交付。 | Release 构建已验证可产出 unsigned APK（1.7MB，R8/lintVital 通过）；下一步只剩签名、应用身份与数据迁移边界。 | [构建配置](../../app/build.gradle.kts)、[PR #4](https://github.com/Venompool888/deepseek-harness-mobile/pull/4)、[公开发行](https://github.com/Venompool888/deepseek-harness-mobile/releases/tag/v1.1.0) |
 | OI-004 | open | 公网部署、开机托管及非 macOS arm64 目标运行未验收；固定 Desktop Cookie 不自动续期，历史 LAN 运行状态不能代表当前可用。 | 选定部署目标后核对真实 Host、认证更新与服务托管，再做实际 HTTPS 外部链路验收。 | [bridge 说明](../../bridge/README.md)、[私有传输验收](../qa/private-transport/validation.md) |
