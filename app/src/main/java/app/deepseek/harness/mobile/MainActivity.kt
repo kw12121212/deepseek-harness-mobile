@@ -74,6 +74,12 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 
+internal fun sessionOrder(sessions: List<HarnessApi.Session>, lastUpdated: Boolean): List<HarnessApi.Session> {
+    // Host 只给 last update time，assistant 时间不可得；list/projections 无此字段。
+    // 从 page 推导需逐会话读取历史，可能继续翻页，无法满足最多新增一次 RPC 的限制。
+    return if (lastUpdated) sessions.sortedByDescending { it.updatedAt } else sessions
+}
+
 class MainActivity : ComponentActivity() {
     private var themePreference = AppThemePreference.DARK
     private var darkTheme = true
@@ -2479,15 +2485,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showWorkspaceActions(workspace: HarnessApi.Workspace) {
         val sourceServer = serverUrl
-        val workspaces = drawerWorkspaces
-        val index = workspaces.indexOfFirst { it.id == workspace.id }
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        if (index > 0) {
-            actions += tr("上移", "Move up") to { moveWorkspaceBefore(workspace.id, workspaces[index - 1].id, sourceServer) }
-        }
-        if (index >= 0 && index < workspaces.lastIndex) {
-            actions += tr("下移", "Move down") to { moveWorkspaceBefore(workspace.id, workspaces.getOrNull(index + 2)?.id, sourceServer) }
-        }
         actions += tr("重命名", "Rename") to { showRenameWorkspace(workspace) }
         actions += tr("删除工作区", "Delete workspace") to { confirmDeleteWorkspace(workspace) }
         AlertDialog.Builder(this)
@@ -2498,16 +2496,6 @@ class MainActivity : ComponentActivity() {
             }
             .setNegativeButton(tr("取消", "Cancel"), null)
             .show()
-    }
-
-    private fun moveWorkspaceBefore(workspaceId: String, beforeWorkspaceId: String?, sourceServer: String?) {
-        mutateWorkspace(sourceServer, tr("工作区排序失败", "Unable to reorder workspaces"), onSuccess = { workspaceIds ->
-            val order = workspaceIds.withIndex().associate { it.value to it.index }
-            drawerWorkspaces = drawerWorkspaces.sortedBy { order[it.id] ?: Int.MAX_VALUE }
-            renderSessionList()
-        }) {
-            api.insertWorkspaceBefore(workspaceId, beforeWorkspaceId)
-        }
     }
 
     private fun confirmDeleteWorkspace(workspace: HarnessApi.Workspace) {
@@ -2550,22 +2538,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun <T> mutateWorkspace(
+    private fun mutateWorkspace(
         sourceServer: String?,
         failureMessage: String,
-        onSuccess: (T) -> Unit = { refreshDrawerSessions() },
-        block: () -> T,
+        block: () -> Unit,
     ) {
         if (serverUrl != sourceServer) return
         progress.visibility = View.VISIBLE
         worker.execute {
             try {
                 if (serverUrl != sourceServer) return@execute
-                val mutation = block()
+                block()
                 mainHandler.post {
                     if (serverUrl != sourceServer || isFinishing) return@post
                     progress.visibility = View.GONE
-                    onSuccess(mutation)
+                    refreshDrawerSessions()
                 }
             } catch (error: Exception) {
                 mainHandler.post {
@@ -3972,7 +3959,7 @@ class MainActivity : ComponentActivity() {
         }
         val query = drawerSearchQuery.trim()
         val orderedSessions = sessions.filter { !it.blank || pendingKeys(it.id).isNotEmpty() }.let {
-            if (drawerOrderLastUpdated) it.sortedByDescending { session -> session.updatedAt } else it
+            sessionOrder(it, drawerOrderLastUpdated)
         }
         val matchedWorkspacePaths = drawerWorkspaces.filter {
             query.isNotBlank() && (it.title.contains(query, true) || it.path.contains(query, true))
@@ -4145,21 +4132,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showSessionActionMenu(session: HarnessApi.Session) {
         val sourceServer = serverUrl
-        val workspace = drawerWorkspaces.firstOrNull { session.id in it.sessionIds }
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        if (workspace != null) {
-            val index = workspace.sessionIds.indexOf(session.id)
-            if (index > 0) {
-                actions += tr("上移", "Move up") to {
-                    moveSessionBefore(workspace.id, session.id, workspace.sessionIds[index - 1], sourceServer)
-                }
-            }
-            if (index < workspace.sessionIds.lastIndex) {
-                actions += tr("下移", "Move down") to {
-                    moveSessionBefore(workspace.id, session.id, workspace.sessionIds.getOrNull(index + 2), sourceServer)
-                }
-            }
-        }
         actions += tr("重命名", "Rename") to { showRenameSession(session) }
         actions += tr("Fork 会话", "Fork session") to { confirmForkSession(session) }
         actions += tr("归档", "Archive") to { confirmArchiveSession(session) }
@@ -4171,17 +4144,6 @@ class MainActivity : ComponentActivity() {
             }
             .setNegativeButton(tr("取消", "Cancel"), null)
             .show()
-    }
-
-    private fun moveSessionBefore(workspaceId: String, sessionId: String, beforeSessionId: String?, sourceServer: String?) {
-        mutateWorkspace(sourceServer, tr("会话排序失败", "Unable to reorder sessions"), onSuccess = { workspace ->
-            drawerWorkspaces = drawerWorkspaces.map {
-                if (it.id == workspace.id) it.copy(sessionIds = workspace.sessionIds) else it
-            }
-            setDrawerOrder(false)
-        }) {
-            api.insertSessionBefore(workspaceId, sessionId, beforeSessionId)
-        }
     }
 
     private fun resolveSessionMenu(session: HarnessApi.Session) {
