@@ -32,3 +32,19 @@
 
 手机在会话运行中时，发送键会变成「停止」，所以**没法从手机本身往队列里加消息**——只能从 Web 追加。
 桌面端没有这个限制（运行中仍可排队）。这是下一步要补的输入侧能力。
+
+## 2026-11-02 19:4x 运行中排队（OI-013）与删除缺陷（OI-014）
+
+真机（Pixel 10，1.1.2-qa）逐步操作：
+
+| 步骤 | 结果 |
+| --- | --- |
+| 运行中、输入框为空 | 按钮为停止图标（Stop current task） |
+| 运行中，用输入法输入并上屏 | 按钮变成 Send message（`e50bd8b`） |
+| 点发送 | 输入框清空、本轮**没有**被取消、输入框上方出现「1 queued messages」 |
+| 队列条「⋯」→ Delete queued message | **失败**：Toast「Delete failed: this message may already have started sending.」（Host 返回 queue-item-not-found） |
+| 队列条「⋯」→ Edit queued message | 编辑框能打开并预填，未提交保存（避免二次污染） |
+
+截图：`queued-from-phone.png`、`delete-toast2.png`、`edit-dialog.png`。
+
+复现：会话运行中打字发送 → 队列条出现一条 → 打开「⋯」→ 删除 → 观察 Toast。

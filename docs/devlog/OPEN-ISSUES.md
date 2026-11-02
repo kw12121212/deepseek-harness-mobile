@@ -15,7 +15,8 @@
 | OI-009 | open | Q10 session/delete 的接口、历史/目录副作用与恢复语义待确认；固定 rc.2 session-controller 的 service/commands/types 和本机 0.2.1-rc.5 安装包方法表均未发现该端点。尚未实现会话删除、未开放白名单。 | 总监提供实际方法表条目或实现路径后，确认合同并继续原 Q10 范围；不假设删除不可恢复。 | [合同核验与 REA 证据](../qa/session-delete-contract/validation.md)、[本轮记录](2026-11-01-9.md) |
 
 
-| OI-013 | open | 会话运行中时，手机发送键变成「停止」，因此无法从手机把新消息加入队列——只能从桌面/Web 追加。桌面端运行中仍可排队。 | 输入区在运行中提供「排队发送」通道（或长按发送键切换），落点 `session/prompt` 的 `mode: queue`。 | [队列条验收](../qa/q5b-queue/validation.md) |
+
+| OI-014 | open | 队列条里删除排队消息失败，Toast 显示「Delete failed: this message may already have started sending.」——Host 返回 queue-item-not-found，但条目仍显示在队列条里；编辑/插话未验证。 | 查 itemId 与 Host inbox 的匹配（next-turn/next-step 的 id），以及 remove 走的 RPC 是否与 edit/steer 一致；复现步骤见验收记录。 | [队列条验收](../qa/q5b-queue/validation.md) |
 
 ## 已解决
 
@@ -24,3 +25,4 @@
 | OI-011 | resolved | 暗色界面下 AlertDialog（菜单、确认、重命名输入框）仍是白底黑字，与 App 深色调色板和 DSH Web 不一致。 | 已由 Q13 修复：基主题指定 android:alertDialogTheme 深色弹窗，浅色偏好时用 overlay 切回；输入框改用 Dialog 上下文。 | [Q13 开发记录](2026-11-01-11.md)、[真机截图](../qa/session-archive/device/08-dialog-after-fix.png) |
 | OI-010 | resolved | 会话地址未解析时长按菜单静默无反应：新连接后大多数会话处于该状态，用户会以为长按失效。 | 已由 Q12 修复：未解析先异步解析并提示，成功后弹菜单；subagent 仍不给菜单。 | [Q12 开发记录](2026-11-01-10.md)、[真机验收](../qa/session-menu-resolution/validation.md) |
 | OI-012 | resolved | 流式输出时长按抽屉行弹不出菜单：逐字渲染把主线程排满，且抽屉每 ~250ms 重建行、换掉按住的那版 View。已由 `7e28669` 改成 Choreographer 单帧调度 + 稳定前缀缓存，并加触摸闸门在按住期间推迟重建、抬手后补一次；`f4ecfd6` 把追平预算调到 3.5s 保住逐字观感。 | [流式长按验收](../qa/streaming-long-press/validation.md)、[Issue #5](https://github.com/Venompool888/deepseek-harness-mobile/issues/5) | 170 项单测全绿；真机空闲 / running / 流式探测三种场景长按都能弹出菜单 |
+| OI-013 | resolved | 运行中手机只能停止、无法排队：按钮只认 running，有草稿也照旧取消当前任务。 | 已由 e50bd8b 修复：composerAction(running, hasDraft) 决定图标/描述/点击，有草稿时发送走 queue 模式，长按按钮仍可停止。 | [队列条验收](../qa/q5b-queue/validation.md) | 真机：空草稿=停止图标、打字=发送图标、发送后本轮继续且出现「1 queued messages」；4 项单测 |
