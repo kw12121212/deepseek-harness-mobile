@@ -48,3 +48,18 @@ adb reverse tcp:3090 tcp:3090
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 # 抽屉 → 长按工作区标题 → Move down / Move up
 ```
+
+## 2026-11-02 13:05 入口撤下（保留能力）
+
+Yuri 决定改用「长按拖动」交互，先撤掉菜单入口：
+
+| 检查 | 结果 | 证据 |
+| --- | --- | --- |
+| 长按工作区 | 只有 Rename / Delete workspace | `16-workspace-menu-no-move.png` |
+| 长按会话 | 只有 Rename / Fork session / Archive | `17-session-menu-no-move.png` |
+
+RPC、`HarnessApi` 方法、bridge 白名单和 8 项 API 单测都保留，等拖动交互复用。
+
+排序：抽屉回到「最近更新」（`drawer_order_updated = true`），按 `updatedAt` 倒序。
+Host 的 `session/list` 与 `session/projections` 都没有 assistant 回复时间字段，所以"按最后一条 AI 回复排序"
+目前只能用 `updatedAt` 近似——只发用户消息、还没回复的会话仍会靠前。
