@@ -627,8 +627,20 @@ internal class HarnessApi(
     }
 
     fun updateQueue(sessionId: String, itemId: String, action: SessionQueueAction) {
-        call("session/updateQueue", JSONObject().put("sessionId", sessionId)
-            .put("itemId", itemId).put("action", action.toJson()))
+        try {
+            call("session/updateQueue", JSONObject().put("sessionId", sessionId)
+                .put("itemId", itemId).put("action", action.toJson()))
+        } catch (error: RemoteFailure) {
+            if (error.code == "session/queue-item-not-found") synchronized(this) {
+                if (followSession == sessionId) {
+                    followId?.let { liveConnection?.router?.cancel(it) }
+                    followId = null
+                    followSession = null
+                    followState = null
+                }
+            }
+            throw error
+        }
     }
 
     fun command(sessionId: String, command: String) {

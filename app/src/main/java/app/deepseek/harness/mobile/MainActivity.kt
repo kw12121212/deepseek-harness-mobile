@@ -1605,14 +1605,21 @@ class MainActivity : ComponentActivity() {
         if (error == null && action is SessionQueueAction.Edit) queueEditDialog?.dismiss()
         reconcileQueueUi()
         renderComposerSeat()
-        if (error == null) refresh(showSpinner = false)
-        else Toast.makeText(this, queueActionFailure(action), Toast.LENGTH_LONG).show()
+        if (error == null || error is HarnessApi.RemoteFailure && error.code == "session/queue-item-not-found") {
+            refresh(showSpinner = false)
+        }
+        if (error != null) Toast.makeText(this, queueActionFailure(action, error), Toast.LENGTH_LONG).show()
     }
 
-    private fun queueActionFailure(action: SessionQueueAction): String = when (action) {
-        is SessionQueueAction.Edit -> tr("编辑失败：这条消息可能已经开始发送。", "Edit failed: this message may already have started sending.")
-        SessionQueueAction.Remove -> tr("删除失败：这条消息可能已经开始发送。", "Delete failed: this message may already have started sending.")
-        SessionQueueAction.Steer -> tr("插话发送失败，请重试。", "Failed to send as steer. Please try again.")
+    private fun queueActionFailure(action: SessionQueueAction, error: Exception): String {
+        if (error !is HarnessApi.RemoteFailure || error.code != "session/queue-item-not-found") {
+            return tr("队列操作失败，请重试。", "Queue action failed. Please try again.")
+        }
+        return when (action) {
+            is SessionQueueAction.Edit -> tr("编辑失败：这条消息可能已经开始发送。", "Edit failed: this message may already have started sending.")
+            SessionQueueAction.Remove -> tr("删除失败：这条消息可能已经开始发送。", "Delete failed: this message may already have started sending.")
+            SessionQueueAction.Steer -> tr("插话发送失败，请重试。", "Failed to send as steer. Please try again.")
+        }
     }
 
     private fun todoProgressLabel(): String {

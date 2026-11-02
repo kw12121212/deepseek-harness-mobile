@@ -83,6 +83,31 @@ class HarnessQueueTest {
         assertEquals(0, transport.requests.size)
     }
 
+    @Test fun missingQueueItemReopensFollowAndReplacesStaleQueue() {
+        val transport = QueueTransport()
+        val api = HarnessApi({ "http://server-a" }, transport = { transport })
+        transport.followInbox = inbox("stale")
+        transport.controlInbox = inbox("stale")
+        val worker = Thread { api.streamMux {} }
+        try {
+            api.history("session-a")
+            worker.start()
+            assertTrue(transport.ready.await(3, TimeUnit.SECONDS))
+            assertEquals("stale", api.history("session-a").queuedPrompts.single().id)
+            transport.followInbox = JSONObject().put("next-turn", JSONArray()).put("next-step", JSONArray())
+            transport.queueError = "session/queue-item-not-found"
+            val error = assertThrows(HarnessApi.RemoteFailure::class.java) {
+                api.updateQueue("session-a", "stale", SessionQueueAction.Remove)
+            }
+            assertEquals("session/queue-item-not-found", error.code)
+            assertTrue(api.history("session-a").queuedPrompts.isEmpty())
+            assertEquals(3, transport.followOpens)
+        } finally {
+            api.closeMux()
+            worker.join(3_000)
+        }
+    }
+
     @Test fun followAndControlKeepQueuesIsolatedAndClearOnServerSwitch() {
         val transport = QueueTransport()
         var server = "http://server-a"
@@ -126,10 +151,16 @@ class HarnessQueueTest {
         val ready = CountDownLatch(1)
         var followInbox = JSONObject()
         var controlInbox = JSONObject()
+        var queueError: String? = null
+        var followOpens = 0
         private lateinit var publishControl: (JSONObject) -> Unit
 
         override fun rpc(envelope: JSONObject): JSONObject {
             requests += envelope
+            if (envelope.getString("method") == "session/updateQueue" && queueError != null) {
+                return JSONObject().put("type", "server-response").put("rpcId", envelope.getString("rpcId"))
+                    .put("result", JSONObject().put("ok", false).put("error", JSONObject().put("code", queueError).put("message", "missing")))
+            }
             val value = if (envelope.getString("method") == "session/list") JSONObject().put("items", JSONArray("""[
               {"sessionId":"session-a"},{"sessionId":"session-b"}
             ]""")) else JSONObject().put("accepted", true)
@@ -151,8 +182,11 @@ class HarnessQueueTest {
                     val publish: (JSONObject) -> Unit = { listener.onMessage(this, JSONObject().put("type", "item")
                         .put("streamId", frame.getString("streamId")).put("value", it).toString()) }
                     when (frame.getString("endpoint")) {
-                        "session/follow" -> publish(JSONObject("""{"type":"snapshot","cursor":0,"records":[],"projections":{"asOfSeq":0,"values":{}}}""")
-                            .apply { getJSONObject("projections").getJSONObject("values").put("inbox", followInbox) })
+                        "session/follow" -> {
+                            followOpens++
+                            publish(JSONObject("""{"type":"snapshot","cursor":0,"records":[],"projections":{"asOfSeq":0,"values":{}}}""")
+                                .apply { getJSONObject("projections").getJSONObject("values").put("inbox", followInbox) })
+                        }
                         "session/control" -> {
                             publishControl = publish
                             publish(JSONObject("""{"type":"baseline","value":{"projections":{"session-a":{"asOfSeq":1,"values":{}}}}}""")
