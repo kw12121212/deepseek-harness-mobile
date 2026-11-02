@@ -130,6 +130,23 @@ Yuri 拍板「触控区要改」：不再用 TouchDelegate 把可点区扩出视
 ## 仍未达标（本轮不做）
 
 - 菜单项 44dp：`drillMenuRow` / `choiceMenuRow`（MainActivity.kt:4598-4638）、确认弹窗按钮 44dp（4774-4776）。
-  都在弹层里，离 48dp 差 4dp，改会连带弹层高度，留作下一轮。
+  都在弹层里，离 48dp 差 4dp，改会连带弹层高度，留作下一轮。（已在 2026-11-02 13:40 那一节处理）
 - TalkBack 全量走查、更多机型、长历史性能仍是 OI-007 的剩余部分。
 
+
+## 2026-11-02 13:40 弹层 44dp → 48dp（AGY 实施，真机实测）
+
+上一节列的「仍未达标」已处理：`drillMenuRow`、`choiceMenuRow`、完整访问确认弹窗的复选框与底部按钮全部改为 48dp。
+
+- 改动：`MainActivity.kt` 六行 LayoutParams 由 `dp(44)` 改 `dp(48)`（4631、4655、4747、4791、4792、4793）；
+  行内文字控件保持 44dp（行已 48dp，居中即可），`composer` 输入框与工作区目录弹窗标题保持 44dp。
+- 实施方式：委托 AGY（agy 会话 `aa6bb784-358c-43bc-8732-80ef166b4b1c`，run 证据
+  `~/.dsh/tmp/agy-runs/20261102T033233Z-70415`），父代理审 diff、跑测试、真机验收。
+- 验证：`./gradlew :app:testDebugUnitTest --rerun` 26 份 XML 共 153 项通过、0 失败；`assembleDebug -PqaInstall=true` 通过；
+  Pixel 10（`57151FDCR006YV`）装 .qa 后 uiautomator：模型菜单两行 clickable 容器 126px（=48dp，改前 116px），
+  模型选项两行同样 126px；文字不裁、弹层未越界。截图本地：`~/.dsh/tmp/android/48dp-drill-menu.png`、
+  `48dp-choice-rows.png`。
+- 未在真机验证：完整访问确认弹窗（复选框 + 取消/启用按钮）——触发它要往 Yuri 的在线会话发命令，本轮跳过，
+  只有代码审阅与构建覆盖。
+- 仍低于 48dp（本轮不改，另开单）：目录弹窗 42dp 行与 40dp 按钮、语言/外观弹窗 40dp 关闭键、
+  模型凭据弹窗 36dp 按钮行、完整访问弹窗 40dp 关闭键。

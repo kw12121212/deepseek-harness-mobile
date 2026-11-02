@@ -4769,7 +4769,7 @@ class MainActivity : ComponentActivity() {
             imageTintList = ColorStateList.valueOf(COLOR_MUTED)
         }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { marginStart = dp(4) })
         setOnClickListener { action() }
-        layoutParams = LinearLayout.LayoutParams(MATCH, dp(44))
+        layoutParams = LinearLayout.LayoutParams(MATCH, dp(48))
     }
 
     private fun choiceMenuRow(label: String, selected: Boolean, action: () -> Unit) = LinearLayout(this).apply {
@@ -4793,7 +4793,7 @@ class MainActivity : ComponentActivity() {
             imageTintList = ColorStateList.valueOf(COLOR_TEXT)
         }, LinearLayout.LayoutParams(dp(18), dp(18)))
         setOnClickListener { action() }
-        layoutParams = LinearLayout.LayoutParams(MATCH, dp(44))
+        layoutParams = LinearLayout.LayoutParams(MATCH, dp(48))
     }
 
     private fun permissionMenuRow(value: String, selected: Boolean, action: () -> Unit) = LinearLayout(this).apply {
@@ -4885,7 +4885,7 @@ class MainActivity : ComponentActivity() {
             setPadding(0, 0, 0, 0)
             gravity = Gravity.CENTER_VERTICAL
         }
-        panel.addView(acknowledgement, LinearLayout.LayoutParams(MATCH, dp(44)).apply {
+        panel.addView(acknowledgement, LinearLayout.LayoutParams(MATCH, dp(48)).apply {
             topMargin = dp(8)
         })
 
@@ -4929,9 +4929,9 @@ class MainActivity : ComponentActivity() {
                 runCommand(sessionId, "/permission danger-full-access")
             }
         }
-        actions.addView(cancel, LinearLayout.LayoutParams(dp(96), dp(44)).apply { marginEnd = dp(8) })
-        actions.addView(enable, LinearLayout.LayoutParams(dp(174), dp(44)))
-        panel.addView(actions, LinearLayout.LayoutParams(MATCH, dp(44)).apply { topMargin = dp(8) })
+        actions.addView(cancel, LinearLayout.LayoutParams(dp(96), dp(48)).apply { marginEnd = dp(8) })
+        actions.addView(enable, LinearLayout.LayoutParams(dp(174), dp(48)))
+        panel.addView(actions, LinearLayout.LayoutParams(MATCH, dp(48)).apply { topMargin = dp(8) })
 
         dialog.setContentView(panel)
         dialog.setCanceledOnTouchOutside(true)
