@@ -44,7 +44,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 | 项 | 结果 | 证据 |
 | --- | --- | --- |
-| 1 预览 | 待验 | |
-| 2 失败重试 | 待验 | |
-| 3 超限 | 待验 | |
-| 4 离场 | 待验 | |
+| 1 预览 | 通过：原图全屏显示，点背景关闭后草稿缩略图仍在。 | `/tmp/q5b-attach-edges/1-preview.png`、`1-closed.png` |
+| 2 失败重试 | 通过：停 bridge 后文件卡显示失败及重试，发送禁用；按原 state/cookie 重启后重试成功，发送并在会话中显示附件。 | `/tmp/q5b-attach-edges/2-failed.png`、`2-retry.png`、`2-sent.png` |
+| 3 超限 | 部分验证：40 MiB 文件被拒并提示“文件过大（最大 32 MiB）”；21 张未在真机完成，系统选择器单次限制 20 张，尚需跨批选择验证。`AttachmentsStateTest.rejectsImageAndFileLimits` 覆盖添加第 21 张抛错，但不证明真机提示。 | `/tmp/q5b-attach-edges/3-40m.png`；`app/src/test/java/app/deepseek/harness/mobile/AttachmentsStateTest.kt` |
+| 4 离场 | 部分验证：带附件切换会话及切回，附件条均清空；切服务端未验证，设备连接列表仅有当前一个已保存连接。 | `/tmp/q5b-attach-edges/4-before.png`、`4-other-session.png`、`4-return-session.png`、`4-server-before.png`、`4-connection-list.png` |
