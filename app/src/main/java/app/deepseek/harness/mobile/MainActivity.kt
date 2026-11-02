@@ -135,6 +135,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var statsView: TextView
     private lateinit var todoPanelHost: LinearLayout
     private lateinit var queuePanelHost: LinearLayout
+    private lateinit var goalBar: GoalBarView
+    private val goalState = GoalState()
     private lateinit var progress: ProgressBar
     private lateinit var authOverlay: FrameLayout
     private lateinit var authWebView: WebView
@@ -891,6 +893,8 @@ class MainActivity : ComponentActivity() {
             visibility = View.GONE
         }
         addView(queuePanelHost, LinearLayout.LayoutParams(MATCH, WRAP))
+        goalBar = GoalBarView(this@MainActivity, palette).apply { visibility = View.GONE }
+        addView(goalBar, LinearLayout.LayoutParams(MATCH, dp(48)))
         val card = LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(8), dp(8), dp(8), dp(6))
@@ -2858,6 +2862,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun clearServerState() {
+            goalState.select(null)
+            renderGoal()
             clearAttachments()
             clearQueueUi()
             cancelAllStreamingAnimations()
@@ -3061,6 +3067,9 @@ class MainActivity : ComponentActivity() {
                     if (!liveOnly && !paused) serverUrl?.let { TaskMonitorService.watch(this, it, newSessions) }
                     val keptStart = runningStartedAt.takeIf { currentSession?.id == selected?.id && currentSession?.running == true }
                     if (currentSession?.id != selected?.id) {
+                        goalState.select(selected?.id)
+                        renderGoal()
+                        selected?.id?.let { refreshGoal(it) }
                         clearQueueUi()
                         todosExpanded = false
                         forceMessageScrollToBottom = true
@@ -3137,6 +3146,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun selectSession(session: HarnessApi.Session?) {
+        goalState.select(session?.id)
+        renderGoal()
         clearQueueUi()
         refreshGeneration += 1
         requestRunning = false
@@ -3145,6 +3156,7 @@ class MainActivity : ComponentActivity() {
         cancelAllStreamingAnimations()
         api.watchSession(session?.id)
         currentSession = session
+        if (session != null) refreshGoal(session.id)
         renderComposerSeat()
         currentModels = null
         currentModelsLoadedAt = 0L
@@ -3160,6 +3172,31 @@ class MainActivity : ComponentActivity() {
         emptyView.visibility = View.VISIBLE
         // Preserve an explicit empty selection instead of refresh's default fallback.
         refresh(showSpinner = true, liveOnly = session == null)
+    }
+
+    private fun renderGoal() {
+        if (!::goalBar.isInitialized) return
+        val goal = goalState.goal
+        goalBar.visibility = if (goal == null) View.GONE else View.VISIBLE
+        if (goal != null) goalBar.bind(goal.objective, goal.phase)
+    }
+
+    private fun refreshGoal(sessionId: String) {
+        if (goalState.sessionId != sessionId) return
+        val request = goalState.beginRefresh()
+        val origin = serverUrl
+        val goalApi = api
+        worker.execute {
+            val value = try { goalApi.goal(sessionId) } catch (error: Exception) {
+                Log.w("HarnessGoal", "Unable to load goal", error)
+                null
+            }
+            mainHandler.post {
+                if (serverUrl != origin) return@post
+                goalState.accept(sessionId, request, value)
+                renderGoal()
+            }
+        }
     }
 
     private fun renderHeader() {
@@ -4586,6 +4623,7 @@ class MainActivity : ComponentActivity() {
                         serverUrl?.let { TaskMonitorService.watch(this, it, listOf(startedSession), runningStartedAt!!) }
                     }
                     updateStatus(tr("运行中", "Running"), STATUS_CONNECTED)
+                    refreshGoal(session.id)
                     refresh(showSpinner = false)
                 }
             } catch (authError: HarnessApi.AuthenticationRequired) {
@@ -6078,6 +6116,9 @@ class MainActivity : ComponentActivity() {
                         if (generation != streamGeneration) return@streamMux
                         val sessionId = frame.optNullableString("sessionId")
                         when (frame.optString("type")) {
+                            "session/projection" -> if (frame.optString("key") == "goal" && sessionId != null) mainHandler.post {
+                                if (generation == streamGeneration && currentSession?.id == sessionId) refreshGoal(sessionId)
+                            }
                             "session/status" -> mainHandler.post {
                                 if (generation != streamGeneration) return@post
                                 val running = frame.optBoolean("running")

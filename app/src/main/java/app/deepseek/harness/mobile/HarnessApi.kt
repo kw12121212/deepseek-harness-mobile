@@ -30,6 +30,8 @@ internal class HarnessApi(
     private val sessionMetadata = java.util.concurrent.ConcurrentHashMap<String, Session>()
     fun commandCatalog(sessionId: String): List<CommandInfo> =
         parseCommands(remoteValue("commands/list", JSONObject().put("agentId", sessionId)))
+    fun goal(sessionId: String): GoalInfo? =
+        parseGoal(remoteValue("goals/get", JSONObject().put("agentId", sessionId)))
     private val archivedSessionsByServer = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
     val archivedSessionIds: Set<String>
         get() = archivedSessionsByServer[baseUrl()].orEmpty()
@@ -893,7 +895,7 @@ internal class HarnessApi(
                     if (followSession == sessionId) followState?.projection(key, value, item.optLong("seq"))
                     if (key == "userQuestions") emitQuestionProjection(sessionId, value as? JSONObject, null, onFrame)
                     if (key == "inbox") emitQuestionProjection(sessionId, null, value as? JSONObject, onFrame)
-                    onFrame(JSONObject().put("type", "session/projection").put("sessionId", sessionId))
+                    onFrame(JSONObject().put("type", "session/projection").put("sessionId", sessionId).put("key", key))
                 }
             }
             connection.router.open("\$events", JSONObject(), ended = { connection.abort(it ?: IOException("Required Harness stream ended")) }) { item ->
@@ -903,6 +905,9 @@ internal class HarnessApi(
                     "emit" -> {
                         val args = item.optJSONArray("args") ?: return@open
                         when (item.optString("event")) {
+                            "goal/activation-changed" -> args.optJSONObject(0)?.optNullableString("sessionId")?.let { id ->
+                                onFrame(JSONObject().put("type", "session/projection").put("sessionId", id).put("key", "goal"))
+                            }
                             "api-session/status" -> {
                                 runningBySession[args.getString(0)] = args.getBoolean(1)
                                 onFrame(JSONObject().put("type", "session/status").put("sessionId", args.getString(0)).put("running", args.getBoolean(1)))
