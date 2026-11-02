@@ -129,6 +129,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var permissionButton: TextView
     private lateinit var statsView: TextView
     private lateinit var todoPanelHost: LinearLayout
+    private lateinit var queuePanelHost: LinearLayout
     private lateinit var progress: ProgressBar
     private lateinit var authOverlay: FrameLayout
     private lateinit var authWebView: WebView
@@ -155,6 +156,16 @@ class MainActivity : ComponentActivity() {
     private var currentControls = HarnessApi.SessionControls()
     private var currentStats = HarnessApi.ConversationStats()
     private var currentTodos = emptyList<HarnessApi.TodoItem>()
+    private var currentQueuedPrompts = emptyList<HarnessApi.QueuedPrompt>()
+    private var queueStripState = QueueStripState()
+    private var renderedQueueRows: List<HarnessApi.QueuedPrompt>? = null
+    private var renderedQueueState: QueueStripState? = null
+    private var queueScopeGeneration = 0L
+    private var queueMenu: PopupMenu? = null
+    private var queueMenuItemId: String? = null
+    private var queueEditDialog: AlertDialog? = null
+    private var queueSteerDialog: AlertDialog? = null
+    private var queueSteerItemId: String? = null
     private var currentContextUsage: HarnessApi.ContextUsage? = null
     private var feedbackLoadedSessionId: String? = null
     private var feedbackLoadingSessionId: String? = null
@@ -858,6 +869,11 @@ class MainActivity : ComponentActivity() {
             visibility = View.GONE
         }
         addView(todoPanelHost, LinearLayout.LayoutParams(MATCH, WRAP))
+        queuePanelHost = LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+        }
+        addView(queuePanelHost, LinearLayout.LayoutParams(MATCH, WRAP))
         val card = LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(8), dp(8), dp(8), dp(6))
@@ -1008,6 +1024,8 @@ class MainActivity : ComponentActivity() {
         val allKeys = sessionId?.let(::pendingKeys).orEmpty()
         val keys = allKeys.filterNot { it in hiddenQuestions }
         val key = selectedInteraction[sessionId]?.takeIf(keys::contains) ?: keys.firstOrNull()
+        renderQueueStrip()
+        if (key != null) queuePanelHost.visibility = View.GONE
         val approval = pendingApprovals[key]
         val question = pendingQuestions[key]
         val signature = "$sessionId:${currentSession?.origin}:$key:$allKeys:$approval:$question:${key in interactionResponding}:${interactionErrors[key]}:${approval?.let(::approvalCommand)}"
@@ -1276,6 +1294,307 @@ class MainActivity : ComponentActivity() {
             }, LinearLayout.LayoutParams(MATCH, listHeight))
         }
         todoPanelHost.addView(panel, LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(6) })
+    }
+
+    private fun renderQueueStrip() {
+        if (!::queuePanelHost.isInitialized) return
+        queuePanelHost.visibility = if (queueStripVisible(currentQueuedPrompts, queueStripState)) View.VISIBLE else View.GONE
+        // Keep popup anchors attached across ordinary history/status polling.
+        if (renderedQueueRows == currentQueuedPrompts && renderedQueueState == queueStripState) return
+        renderedQueueRows = currentQueuedPrompts
+        renderedQueueState = queueStripState
+        queuePanelHost.removeAllViews()
+        if (queuePanelHost.visibility == View.GONE) return
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedStroke(COLOR_TODO_PANEL, COLOR_TODO_BORDER, 12f)
+            setPadding(dp(12), 0, dp(12), 0)
+        }
+        panel.addView(buildQueueHeader(), LinearLayout.LayoutParams(MATCH, dp(48)))
+
+        if (queueStripState.busyId != null) {
+            panel.addView(TextView(this).apply {
+                text = tr("正在处理…", "Updating…")
+                textSize = 12f
+                setTextColor(COLOR_MUTED)
+                includeFontPadding = false
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(2), dp(4), dp(2), dp(4))
+            }, LinearLayout.LayoutParams(MATCH, WRAP))
+        }
+
+        if (queueStripState.expanded && currentQueuedPrompts.isNotEmpty()) {
+            val list = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                currentQueuedPrompts.forEach { row ->
+                    addView(buildQueueRow(row), LinearLayout.LayoutParams(MATCH, dp(48)))
+                }
+            }
+            val listHeight = minOf(dp(144), dp(48) * currentQueuedPrompts.size)
+            panel.addView(ScrollView(this).apply {
+                isVerticalScrollBarEnabled = currentQueuedPrompts.size > 3
+                addView(list, ViewGroup.LayoutParams(MATCH, WRAP))
+            }, LinearLayout.LayoutParams(MATCH, listHeight))
+        }
+        queuePanelHost.addView(panel, LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(6) })
+    }
+
+    private fun buildQueueHeader(): View = LinearLayout(this).apply {
+        val isBusy = queueStripState.busyId != null
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        isClickable = !isBusy
+        isFocusable = !isBusy
+        isEnabled = !isBusy
+        alpha = if (isBusy) 0.5f else 1f
+        background = ripple(rounded(Color.TRANSPARENT, 8f))
+        contentDescription = tr(
+            "${currentQueuedPrompts.size} 条排队消息,${if (queueStripState.expanded) "点击收起" else "点击展开"}",
+            "${currentQueuedPrompts.size} queued messages, ${if (queueStripState.expanded) "tap to collapse" else "tap to expand"}",
+        )
+        setOnClickListener {
+            if (!isBusy) {
+                queueStripState = queueStripState.toggleExpanded()
+                renderQueueStrip()
+            }
+        }
+        addView(TextView(this@MainActivity).apply {
+            text = tr("${currentQueuedPrompts.size} 条排队消息", "${currentQueuedPrompts.size} queued messages")
+            textSize = 13f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(COLOR_TEXT)
+            includeFontPadding = false
+            gravity = Gravity.CENTER_VERTICAL
+        }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        addView(ImageView(this@MainActivity).apply {
+            setImageResource(if (queueStripState.expanded) R.drawable.ic_chevron_down_harness else R.drawable.ic_chevron_up_harness)
+            imageTintList = ColorStateList.valueOf(COLOR_MUTED)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LinearLayout.LayoutParams(dp(18), dp(18)))
+    }
+
+    private fun buildQueueRow(row: HarnessApi.QueuedPrompt): View = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        minimumHeight = dp(48)
+
+        addView(TextView(this@MainActivity).apply {
+            text = queueTargetLabel(row.target, ::tr)
+            textSize = 11f
+            maxLines = 1
+            setTextColor(COLOR_CONTROL_TEXT)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            background = rounded(COLOR_CONTROL, 6f)
+            setPadding(dp(6), dp(2), dp(6), dp(2))
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginEnd = dp(8) })
+
+        val preview = TextView(this@MainActivity).apply {
+            text = queuePreview(row.text, ::tr)
+            textSize = 13f
+            setTextColor(if (row.text == null) COLOR_MUTED else COLOR_TEXT)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            includeFontPadding = false
+            gravity = Gravity.CENTER_VERTICAL
+            if (row.text == null) {
+                tooltipText = tr("包含非文本内容，暂不支持编辑", "Contains non-text content; editing is not supported yet")
+            }
+        }
+        addView(preview, LinearLayout.LayoutParams(0, WRAP, 1f).apply { marginEnd = dp(4) })
+
+        val isBusy = queueStripState.busyId != null
+        val moreButton = TextView(this@MainActivity).apply {
+            text = "⋯"
+            textSize = 18f
+            setTextColor(COLOR_CONTROL_TEXT)
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            isClickable = !isBusy
+            isFocusable = !isBusy
+            isEnabled = !isBusy
+            alpha = if (isBusy) 0.4f else 1f
+            background = ripple(rounded(Color.TRANSPARENT, 24f))
+            contentDescription = tr("排队消息操作", "Queued message actions") + ": " + queuePreview(row.text, ::tr)
+            setOnClickListener { anchor ->
+                if (isEnabled) {
+                    showQueueActions(row, anchor)
+                }
+            }
+        }
+        addView(moreButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+    }
+
+    private fun clearQueueUi() {
+        queueScopeGeneration += 1
+        currentQueuedPrompts = emptyList()
+        queueStripState = QueueStripState()
+        renderedQueueRows = null
+        renderedQueueState = null
+        queueMenu?.dismiss()
+        queueMenu = null
+        queueMenuItemId = null
+        queueEditDialog?.dismiss()
+        queueEditDialog = null
+        queueSteerDialog?.dismiss()
+        queueSteerDialog = null
+        queueSteerItemId = null
+        if (::queuePanelHost.isInitialized) {
+            queuePanelHost.removeAllViews()
+            queuePanelHost.visibility = View.GONE
+        }
+    }
+
+    private fun reconcileQueueUi() {
+        queueStripState = queueStripState.reconcile(currentQueuedPrompts)
+        if (queueStripState.editingId == null) queueEditDialog?.dismiss()
+        if (currentQueuedPrompts.none { it.id == queueMenuItemId }) queueMenu?.dismiss()
+        if (currentQueuedPrompts.none { it.id == queueSteerItemId }) queueSteerDialog?.dismiss()
+        queueEditDialog?.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled =
+            queueStripState.busyId == null && queueEditDialog?.findViewById<EditText>(android.R.id.edit)?.text?.isNotBlank() == true
+    }
+
+    private fun showQueueActions(row: HarnessApi.QueuedPrompt, anchor: View) {
+        if (queueStripState.busyId != null) return
+        val scope = queueScopeGeneration
+        val availability = queueActionAvailability(row, queueStripState, currentSession?.running == true)
+        queueMenu?.dismiss()
+        queueMenuItemId = row.id
+        val popup = PopupMenu(this, anchor)
+        queueMenu = popup
+        if (row.text != null) popup.menu.add(tr("编辑排队消息", "Edit queued message")).apply {
+            isEnabled = availability.edit
+            setOnMenuItemClickListener {
+                if (scope == queueScopeGeneration) showQueueEditor(row.id)
+                true
+            }
+        }
+        popup.menu.add(if (currentSession?.running == true) tr("插话发送", "Send as steer")
+            else tr("插话发送（仅运行中可插话发送）", "Send as steer (only available while running)")).apply {
+            isEnabled = availability.steer
+            setOnMenuItemClickListener {
+                if (scope == queueScopeGeneration) confirmQueueSteer(row.id)
+                true
+            }
+        }
+        popup.menu.add(tr("删除排队消息", "Delete queued message")).apply {
+            isEnabled = availability.remove
+            setOnMenuItemClickListener {
+                if (scope == queueScopeGeneration) applyQueueAction(row.id, SessionQueueAction.Remove)
+                true
+            }
+        }
+        popup.setOnDismissListener { if (queueMenu === popup) { queueMenu = null; queueMenuItemId = null } }
+        popup.show()
+    }
+
+    private fun showQueueEditor(itemId: String) {
+        val text = currentQueuedPrompts.firstOrNull { it.id == itemId }?.text ?: return
+        if (queueStripState.busyId != null) return
+        val scope = queueScopeGeneration
+        val input = dialogEditText().apply {
+            id = android.R.id.edit
+            setText(text)
+            setSelection(text.length)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minHeight = dp(48)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(tr("编辑排队消息", "Edit queued message"))
+            .setView(input)
+            .setPositiveButton(tr("保存", "Save"), null)
+            .setNegativeButton(tr("取消", "Cancel"), null)
+            .create()
+        queueEditDialog = dialog
+        queueStripState = queueStripState.copy(editingId = itemId)
+        dialog.setOnDismissListener {
+            if (queueEditDialog === dialog) {
+                queueEditDialog = null
+                queueStripState = queueStripState.copy(editingId = null)
+            }
+        }
+        dialog.show()
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).apply {
+            isEnabled = queueEditSaveAllowed(input.text.toString(), queueStripState)
+            setOnClickListener {
+                if (scope == queueScopeGeneration && queueEditSaveAllowed(input.text.toString(), queueStripState)) {
+                    applyQueueAction(itemId, SessionQueueAction.Edit(input.text.toString()))
+                }
+            }
+        }
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = queueEditSaveAllowed(s.toString(), queueStripState)
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+    }
+
+    private fun confirmQueueSteer(itemId: String) {
+        if (currentSession?.running != true) { showQueueSteerUnavailable(); return }
+        val scope = queueScopeGeneration
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(tr("插话发送？", "Send as steer?"))
+            .setMessage(tr("这会改变当前 turn 的投递目标，并将这条排队消息作为插话发送。", "This changes the delivery target for the current turn and sends this queued message as a steer."))
+            .setPositiveButton(tr("插话发送", "Send as steer")) { _, _ ->
+                if (scope == queueScopeGeneration) applyQueueAction(itemId, SessionQueueAction.Steer)
+            }
+            .setNegativeButton(tr("取消", "Cancel"), null)
+            .create()
+        queueSteerDialog = dialog
+        queueSteerItemId = itemId
+        dialog.setOnDismissListener {
+            if (queueSteerDialog === dialog) { queueSteerDialog = null; queueSteerItemId = null }
+        }
+        dialog.show()
+    }
+
+    private fun showQueueSteerUnavailable() {
+        Toast.makeText(this, tr("仅运行中可插话发送", "Only available while running"), Toast.LENGTH_LONG).show()
+    }
+
+    private fun applyQueueAction(itemId: String, action: SessionQueueAction) {
+        val sessionId = currentSession?.id ?: return
+        val row = currentQueuedPrompts.firstOrNull { it.id == itemId } ?: return
+        val availability = queueActionAvailability(row, queueStripState, currentSession?.running == true)
+        when (action) {
+            is SessionQueueAction.Edit -> if (!availability.edit || !queueEditSaveAllowed(action.text, queueStripState)) return
+            SessionQueueAction.Remove -> if (!availability.remove) return
+            SessionQueueAction.Steer -> if (!availability.steer) { showQueueSteerUnavailable(); return }
+        }
+        val scope = queueScopeGeneration
+        queueStripState = queueStripState.copy(busyId = itemId)
+        reconcileQueueUi()
+        renderComposerSeat()
+        worker.execute {
+            try {
+                api.updateQueue(sessionId, itemId, action)
+                mainHandler.post { settleQueueAction(scope, sessionId, action, null) }
+            } catch (error: Exception) {
+                mainHandler.post { settleQueueAction(scope, sessionId, action, error) }
+            }
+        }
+    }
+
+    private fun settleQueueAction(scope: Long, sessionId: String, action: SessionQueueAction, error: Exception?) {
+        if (scope != queueScopeGeneration || currentSession?.id != sessionId || isFinishing) return
+        queueStripState = queueStripState.copy(busyId = null)
+        if (error == null && action is SessionQueueAction.Edit) queueEditDialog?.dismiss()
+        reconcileQueueUi()
+        renderComposerSeat()
+        if (error == null) refresh(showSpinner = false)
+        else Toast.makeText(this, queueActionFailure(action), Toast.LENGTH_LONG).show()
+    }
+
+    private fun queueActionFailure(action: SessionQueueAction): String = when (action) {
+        is SessionQueueAction.Edit -> tr("编辑失败：这条消息可能已经开始发送。", "Edit failed: this message may already have started sending.")
+        SessionQueueAction.Remove -> tr("删除失败：这条消息可能已经开始发送。", "Delete failed: this message may already have started sending.")
+        SessionQueueAction.Steer -> tr("插话发送失败，请重试。", "Failed to send as steer. Please try again.")
     }
 
     private fun todoProgressLabel(): String {
@@ -2466,6 +2785,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyServer(url: String) {
+        clearQueueUi()
         connectionEpoch += 1
         refreshGeneration += 1
         requestRunning = false
@@ -2498,6 +2818,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun clearServerState() {
+            clearQueueUi()
             cancelAllStreamingAnimations()
             providerOnboardingDialog?.dismiss()
             providerOnboardingDialog = null
@@ -2699,6 +3020,7 @@ class MainActivity : ComponentActivity() {
                     if (!liveOnly && !paused) serverUrl?.let { TaskMonitorService.watch(this, it, newSessions) }
                     val keptStart = runningStartedAt.takeIf { currentSession?.id == selected?.id && currentSession?.running == true }
                     if (currentSession?.id != selected?.id) {
+                        clearQueueUi()
                         todosExpanded = false
                         forceMessageScrollToBottom = true
                         feedbackLoadedSessionId = null
@@ -2709,6 +3031,7 @@ class MainActivity : ComponentActivity() {
                         lastRenderedRows = emptyList()
                         lastRenderedRunning = false
                     }
+                    if (currentSession?.running != selected?.running) queueMenu?.dismiss()
                     currentSession = selected
                     currentModels = models
                     if (fetchedModels) currentModelsLoadedAt = System.currentTimeMillis()
@@ -2717,6 +3040,8 @@ class MainActivity : ComponentActivity() {
                     currentControls = history?.controls ?: HarnessApi.SessionControls()
                     currentStats = history?.stats ?: HarnessApi.ConversationStats()
                     currentTodos = history?.todos.orEmpty()
+                    currentQueuedPrompts = history?.queuedPrompts.orEmpty()
+                    reconcileQueueUi()
                     selected?.id?.let { sessionId ->
                         val projected = history?.questions.orEmpty()
                         val activeKeys = projected.map { it.key }.toSet()
@@ -2771,6 +3096,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun selectSession(session: HarnessApi.Session?) {
+        clearQueueUi()
         refreshGeneration += 1
         requestRunning = false
         refreshQueued = false
@@ -3361,6 +3687,7 @@ class MainActivity : ComponentActivity() {
                     messageFeedback.clear()
                     feedbackPending.clear()
                     cancelAllStreamingAnimations()
+                    clearQueueUi()
                     currentSession = HarnessApi.Session(id, session.title, session.cwd, session.agentPreset, System.currentTimeMillis(), false, false)
                     closeDrawer()
                     refresh(true)
@@ -4370,6 +4697,7 @@ class MainActivity : ComponentActivity() {
                         mainHandler.post {
                             progress.visibility = View.GONE
                             cancelAllStreamingAnimations()
+                            clearQueueUi()
                             currentSession = HarnessApi.Session(id, session.title, session.cwd, session.agentPreset, System.currentTimeMillis(), false, false)
                             closeDrawer()
                             refresh(true)
@@ -5415,6 +5743,7 @@ class MainActivity : ComponentActivity() {
                                 val running = frame.optBoolean("running")
                                 sessions = sessions.map { if (it.id == sessionId) it.copy(running = running) else it }
                                 if (currentSession?.id == sessionId) {
+                                    if (currentSession?.running != running) queueMenu?.dismiss()
                                     currentSession = currentSession?.copy(running = running)
                                     refresh(showSpinner = false, liveOnly = true)
                                 }
@@ -5594,6 +5923,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        clearQueueUi()
         api.closeMux(); connectionWork.replace(unconfiguredApi())
         refreshGeneration += 1
         cancelAllStreamingAnimations()
