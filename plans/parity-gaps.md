@@ -43,3 +43,10 @@
 对标时**以运行中的 Host 版本为准，不要只看开源 master**。当天附件读取就踩过：master 的
 `session/attachment` 接受完整图片引用，而本机部署的桌面 Host 接受的是 `{request:{sessionId, attachmentId}}`，
 按 master 发请求会被 `gateway/input-invalid` 拒掉。上线前先用真机请求验证一次形状，再写实现。
+
+## 进度（2026-11-02 夜）
+
+- 队列（编辑/删除/插话）：已实现并真机验收（含手机端"运行中排队"）。
+- 附件（图片/文件）：发送闭环已通；历史图片读取已修（双契约回退）；边角验证进行中。
+- commands catalog：已接 Host 目录（`8b4b3cd`），失败回退硬编码。
+- 下一个：goal 编辑器（B 单）。
