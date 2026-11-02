@@ -125,6 +125,150 @@ class HarnessSessionArchiveTest {
     }
 
     @Test
+    fun insertWorkspaceBeforeUsesConfirmedNamedRequestShapeAndParsesOrder() {
+        val transport = ArchiveTransport()
+        transport.mutationValue = JSONObject("""{"workspaceIds":["third","workspace-id","first"]}""")
+        val api = api(transport)
+
+        assertEquals(listOf("third", "workspace-id", "first"), api.insertWorkspaceBefore("workspace-id", "first"))
+
+        val envelope = transport.requests.single()
+        assertEquals("workspace/insertBefore", envelope.getString("method"))
+        val args = envelope.getJSONObject("payload").getJSONObject("args")
+        assertEquals(setOf("request"), args.keys().asSequence().toSet())
+        val request = args.getJSONObject("request")
+        assertEquals(setOf("workspaceId", "beforeWorkspaceId"), request.keys().asSequence().toSet())
+        assertEquals("workspace-id", request.getString("workspaceId"))
+        assertEquals("first", request.getString("beforeWorkspaceId"))
+    }
+
+    @Test
+    fun insertWorkspaceBeforeOmitsBeforeWorkspaceIdWhenMovingToEnd() {
+        val transport = ArchiveTransport()
+        transport.mutationValue = JSONObject("""{"workspaceIds":["first","workspace-id"]}""")
+        val api = api(transport)
+
+        assertEquals(listOf("first", "workspace-id"), api.insertWorkspaceBefore("workspace-id", null))
+
+        val envelope = transport.requests.single()
+        assertEquals("workspace/insertBefore", envelope.getString("method"))
+        val args = envelope.getJSONObject("payload").getJSONObject("args")
+        assertEquals(setOf("request"), args.keys().asSequence().toSet())
+        val request = args.getJSONObject("request")
+        assertEquals(setOf("workspaceId"), request.keys().asSequence().toSet())
+        assertEquals("workspace-id", request.getString("workspaceId"))
+    }
+
+    @Test
+    fun insertSessionBeforeUsesConfirmedNamedRequestShapeAndParsesWorkspace() {
+        val transport = ArchiveTransport()
+        transport.mutationValue = JSONObject("""{
+          "workspace":{"workspaceId":"workspace-id","title":"Project","path":"/project","sessionIds":["third","moved","first"]}
+        }""")
+        val api = api(transport)
+
+        assertEquals(
+            HarnessApi.Workspace("workspace-id", "Project", "/project", listOf("third", "moved", "first")),
+            api.insertSessionBefore("workspace-id", "moved", "first"),
+        )
+
+        val envelope = transport.requests.single()
+        assertEquals("workspace/insertSessionBefore", envelope.getString("method"))
+        val args = envelope.getJSONObject("payload").getJSONObject("args")
+        assertEquals(setOf("request"), args.keys().asSequence().toSet())
+        val request = args.getJSONObject("request")
+        assertEquals(setOf("workspaceId", "sessionId", "beforeSessionId"), request.keys().asSequence().toSet())
+        assertEquals("workspace-id", request.getString("workspaceId"))
+        assertEquals("moved", request.getString("sessionId"))
+        assertEquals("first", request.getString("beforeSessionId"))
+    }
+
+    @Test
+    fun insertSessionBeforeOmitsBeforeSessionIdWhenMovingToEnd() {
+        val transport = ArchiveTransport()
+        transport.mutationValue = JSONObject("""{
+          "workspace":{"workspaceId":"workspace-id","title":"Project","path":"/project","sessionIds":["first","moved"]}
+        }""")
+        val api = api(transport)
+
+        assertEquals(
+            HarnessApi.Workspace("workspace-id", "Project", "/project", listOf("first", "moved")),
+            api.insertSessionBefore("workspace-id", "moved", null),
+        )
+
+        val envelope = transport.requests.single()
+        assertEquals("workspace/insertSessionBefore", envelope.getString("method"))
+        val args = envelope.getJSONObject("payload").getJSONObject("args")
+        assertEquals(setOf("request"), args.keys().asSequence().toSet())
+        val request = args.getJSONObject("request")
+        assertEquals(setOf("workspaceId", "sessionId"), request.keys().asSequence().toSet())
+        assertEquals("workspace-id", request.getString("workspaceId"))
+        assertEquals("moved", request.getString("sessionId"))
+    }
+
+    @Test
+    fun insertWorkspaceBeforeFailurePreservesWorkspaceAndSessionState() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived")
+        val api = api(transport)
+        val workspaces = api.workspaces()
+        val snapshot = api.sessionSnapshot()
+        transport.mutationError = JSONObject("""{"code":"workspace/not-found","message":"Workspace not found"}""")
+
+        val failure = assertThrows(HarnessApi.RemoteFailure::class.java) { api.insertWorkspaceBefore("workspace", null) }
+
+        assertEquals("workspace/not-found", failure.code)
+        assertEquals("Workspace not found", failure.message)
+        assertEquals(listOf(HarnessApi.Workspace("workspace", "Project", "/project", listOf("visible", "archived"))), workspaces)
+        assertEquals(workspaces, api.workspaces())
+        assertEquals(snapshot, api.sessionSnapshot())
+        assertEquals(setOf("archived"), api.archivedSessionIds)
+        assertTrue(api.isSessionAddressResolved("visible"))
+        assertTrue(api.isSessionAddressResolved("archived"))
+    }
+
+    @Test
+    fun insertSessionBeforeFailurePreservesWorkspaceAndSessionState() {
+        val transport = ArchiveTransport()
+        transport.baseline = baseline("archived")
+        val api = api(transport)
+        val workspaces = api.workspaces()
+        val snapshot = api.sessionSnapshot()
+        transport.mutationError = JSONObject("""{"code":"workspace/session-not-found","message":"Session not found"}""")
+
+        val failure = assertThrows(HarnessApi.RemoteFailure::class.java) { api.insertSessionBefore("workspace", "visible", "archived") }
+
+        assertEquals("workspace/session-not-found", failure.code)
+        assertEquals("Session not found", failure.message)
+        assertEquals(listOf(HarnessApi.Workspace("workspace", "Project", "/project", listOf("visible", "archived"))), workspaces)
+        assertEquals(workspaces, api.workspaces())
+        assertEquals(snapshot, api.sessionSnapshot())
+        assertEquals(setOf("archived"), api.archivedSessionIds)
+        assertTrue(api.isSessionAddressResolved("visible"))
+        assertTrue(api.isSessionAddressResolved("archived"))
+    }
+
+    @Test
+    fun insertWorkspaceBeforeRejectsMalformedOrder() {
+        val transport = ArchiveTransport()
+        val api = api(transport)
+
+        assertThrows(org.json.JSONException::class.java) { api.insertWorkspaceBefore("workspace", null) }
+        transport.mutationValue = JSONObject("""{"workspaceIds":null}""")
+        assertThrows(org.json.JSONException::class.java) { api.insertWorkspaceBefore("workspace", null) }
+    }
+
+    @Test
+    fun insertSessionBeforeRejectsMalformedWorkspace() {
+        val transport = ArchiveTransport()
+        val api = api(transport)
+
+        assertThrows(org.json.JSONException::class.java) { api.insertSessionBefore("workspace", "visible", null) }
+        transport.mutationValue = JSONObject("""{"workspace":{"workspaceId":"workspace","title":"Project","path":"/project"}}""")
+        assertThrows(org.json.JSONException::class.java) { api.insertSessionBefore("workspace", "visible", null) }
+    }
+
+    @Test
     fun renameWorkspaceFailureIsReportedWithoutChangingBaseline() {
         val transport = ArchiveTransport()
         transport.baseline = baseline("archived")
