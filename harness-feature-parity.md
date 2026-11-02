@@ -35,7 +35,7 @@ Open work is tracked in [OPEN-ISSUES.md](docs/devlog/OPEN-ISSUES.md).
 
 ## Still needs a native surface
 
-- Manual session reorder and queued-item edit/remove (`session/updateQueue` is available on the host but not yet wired).
+- Queued prompt strip above the composer: pending items with target label, preview, edit / steer / remove through `session/updateQueue`, hidden when empty (fdf59ee, effad4b). Session and workspace reorder RPCs are wired and tested, but their menu entries stay hidden until the long-press drag interaction lands.
 - Workspace reorder (`workspace/rename` and `workspace/delete` are wired through long-press on a drawer workspace header; delete only removes the registration, not sessions or files).
 - Agent preset read/copy/open/delete authoring screens.
 - Image/text attachments and upload failure/retry.
