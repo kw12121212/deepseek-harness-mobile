@@ -21,16 +21,18 @@
 重启后的顺序：`Shakespeare restoration` → `deepseek-harness-mobile` → `3506 复习` → ……（移动前是 deepseek 在前）。
 之后用 Move down 把 `Shakespeare` 移回原位，顺序恢复成 `deepseek-harness-mobile` → `Shakespeare restoration`。
 
-## 会话排序（Q5a）：只验到"没有邻居时正确隐藏"
+## 会话排序（Q5a）：通过
 
 | 步骤 | 结果 | 证据 |
 | --- | --- | --- |
-| 长按工作区里唯一一条会话 | 菜单只有 Rename / Fork session / Archive，**没有** Move up / Move down | `12-session-menu-single.png` |
+| 展开 `yuri` 工作区（host 里 25 条会话，磁盘 30 个目录含 5 个 subagent） | 抽屉里能看到全部普通会话，往下滚动还有 Seek、玄离99、Siri、内存排查、UQ 考试、SSH、菲律宾节点、Playwright MCP、微信、语音提醒等 | — |
+| 长按 `Codex 远程连接与 DSSH 插件` | 菜单出现 Move up / Move down / Rename / Fork session / Archive | `13-session-menu.png` |
+| 点 Move up | 该会话上移一位（安卓 → **Codex** → Playwright），抽屉立即重排 | `14-after-session-move.png` |
+| 再点 Move down | 回到原顺序（安卓 → Playwright → Codex），已还原 | `15-restored-order.png` |
+| 单条会话的工作区 | 菜单只给 Rename / Fork / Archive，Move 项正确隐藏 | `12-session-menu-single.png` |
 
-**没验到的**：真正的两条会话互换。当前 host 上每个工作区都只有 1 条可见会话
-（抽屉按工作区分组，每条会话的 cwd 各自独立），没有"相邻项"可以移动。
-代码路径与请求体由 8 项单测覆盖（请求形状、可选字段省略、结果解析、失败不改状态），
-真机互换要等有 ≥2 条会话的工作区，或另建两条一次性会话。
+注意：第一次排序后抽屉会从"最近更新"切到"手动"，此时未动过的会话也会按 Host 存的顺序重排，
+看起来像一次大洗牌——这是有意行为（Host 持久顺序），不是错乱。
 
 ## 顺带发现（已记 OI-012）
 
