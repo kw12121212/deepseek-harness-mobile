@@ -8,11 +8,13 @@
 | OI-002 | open | 计划审阅、多选、timed → continued 有源码/单测/手机注入验证，真实 Host 发出和调度尚未逐项端到端复测。 | 在隔离 QA 会话补真实 Host 三类交互与重连验收，保持任务与回答身份关联。 | [交互验收](../qa/interaction-parity/validation.md) |
 | OI-003 | open | 源码为 1.1.2/code 8，公开 APK 仍为 v1.1.0；正式签名发行尚未交付。2026-11-02 Yuri 定：**不做老应用数据迁移**——新版是独立身份，用户重新配对即可。 | 只差签名与发布流程：生成 keystore、配 `signing/`、打 signed release、更新 README 与 release notes（说明需重新配对）。 | [构建配置](../../app/build.gradle.kts)、[PR #4](https://github.com/Venompool888/deepseek-harness-mobile/pull/4)、[公开发行](https://github.com/Venompool888/deepseek-harness-mobile/releases/tag/v1.1.0) |
 | OI-004 | open | 公网部署、开机托管及非 macOS arm64 目标运行未验收；固定 Desktop Cookie 不自动续期，历史 LAN 运行状态不能代表当前可用。 | 选定部署目标后核对真实 Host、认证更新与服务托管，再做实际 HTTPS 外部链路验收。 | [bridge 说明](../../bridge/README.md)、[私有传输验收](../qa/private-transport/validation.md) |
-| OI-005 | open | 会话归档/恢复入口和工作区长按改名/删除已实现，Q9 Android 131 项与 Go race/vet 通过；相关 UI 真机未验收，活动详情确认、排序、队列编辑/删除、附件上传/重试、workspace 排序和 preset 管理仍缺原生入口。 | 等总监派下一步；在匹配构建/设备环境补工作区改名/删除且保留会话、归档/恢复及仅剩归档项的真机验收，排序等另行安排。 | [Q9 验证](2026-11-01-8.md)、[Q1c 验证](2026-11-01-4.md)、[更新后功能清单](../../harness-feature-parity.md) |
+| OI-005 | open | 会话归档/恢复、工作区长按改名/删除已实现并在 Pixel 验收。2026-11-02 补上工作区与会话的「上移/下移」排序（Host 持久顺序）：工作区排序真机通过（含重启保持），会话排序只验到“没有邻居时正确隐藏”，两条会话互换待有 ≥2 条会话的工作区。活动详情确认、队列编辑/删除、附件上传/重试、preset 管理仍缺原生入口。 | 补会话互换的真机验收（需要 ≥2 条会话的工作区）；其余按队列推进。 | [Q9 验证](2026-11-01-8.md)、[排序验收](../qa/q5-reorder/validation.md)、[功能清单](../../harness-feature-parity.md) |
 | OI-006 | open | 完整目标编辑、子代理树、jobs、schedules、workflow、交互终端、交付物、skills 和通用设置仍缺原生面板；私有模式仅能到服务端电脑本地 Web 操作。 | 按实际移动工作流分批选择功能域；保留私有桥接不代理原生 Web 的边界。 | [功能清单](../../harness-feature-parity.md)、[Web 入口限制](../../app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt#L4974) |
 | OI-007 | open | 2026-11-02 已把活动折叠行、顶部标题、抽屉各行（New Session / 工具栏 / 工作区 / Settings）、待办 header、设置弹窗关闭全部改成真正的 48dp 并在 Pixel 上复测通过（点两行缝隙不再误触上一行）；仍未达标的是弹层里 44dp 的菜单项与确认按钮，外加 TalkBack 全量走查、更广设备验收、本地化和长历史性能。 | 下一轮：菜单项/确认按钮 44→48dp；再做 TalkBack 走查与长会话性能测量。详见 [触控区审计](../qa/a11y-touch-targets/audit.md) 的 2026-11-02 两节。 | [核心验收限制](../qa/dsh-rc2-core/validation.md)、[视觉验收边界](../qa/web-visual-fidelity/validation.md) |
 | OI-008 | open | 未确认发送的去重 ID 仅存内存，进程销毁后的持久恢复尚未实现或验证。 | 明确进程死亡后的发送恢复需求，再设计持久化与服务端确认机制，避免重复接纳。 | [发送身份实现](../../app/src/main/java/app/deepseek/harness/mobile/HarnessPromptSubmission.kt)、[合并前验证边界](../qa/merge-readiness/2026-10-12.md) |
 | OI-009 | open | Q10 session/delete 的接口、历史/目录副作用与恢复语义待确认；固定 rc.2 session-controller 的 service/commands/types 和本机 0.2.1-rc.5 安装包方法表均未发现该端点。尚未实现会话删除、未开放白名单。 | 总监提供实际方法表条目或实现路径后，确认合同并继续原 Q10 范围；不假设删除不可恢复。 | [合同核验与 REA 证据](../qa/session-delete-contract/validation.md)、[本轮记录](2026-11-01-9.md) |
+
+| OI-012 | open | 会话正在流式输出时，抽屉里长按会话/工作区经常不触发菜单；同一行等流式结束后 900ms 长按照常弹出。疑似主线程被逐字渲染占满，长按回调被推迟到手指抬起之后。 | 查 MainActivity 的流式渲染是否在主线程做重活；或把行操作改成显式"更多"按钮，不依赖长按。 | [排序验收](../qa/q5-reorder/validation.md) |
 
 ## 已解决
 
