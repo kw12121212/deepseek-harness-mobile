@@ -19,7 +19,6 @@
 
 | OI-015 | open | bridge 拒绝 RPC 时只回 HTTP 400，响应体里的错误码没有传到客户端，排查时只能看到 `Private server HTTP 400`。 | 让客户端读取 4xx 响应体的 `error` 字段，或让 bridge 在回包中带上原因；同时把日志里的 code 打全。 | [队列条验收](../qa/q5b-queue/validation.md) |
 
-| OI-016 | open | 从历史重新加载图片失败：`session/attachment` 返回网关参数校验错误，刚发送的图片靠内存缓存能显示，重开会话后图片出不来。 | 逐个证伪：request 包装方式、引用里的多余键（strict codec 不接受多余字段）、会话身份是否属于父会话。 | [附件验收](../qa/q5b-attachments/validation.md) |
 
 ## 已解决
 
@@ -30,3 +29,4 @@
 | OI-012 | resolved | 流式输出时长按抽屉行弹不出菜单：逐字渲染把主线程排满，且抽屉每 ~250ms 重建行、换掉按住的那版 View。已由 `7e28669` 改成 Choreographer 单帧调度 + 稳定前缀缓存，并加触摸闸门在按住期间推迟重建、抬手后补一次；`f4ecfd6` 把追平预算调到 3.5s 保住逐字观感。 | [流式长按验收](../qa/streaming-long-press/validation.md)、[Issue #5](https://github.com/Venompool888/deepseek-harness-mobile/issues/5) | 170 项单测全绿；真机空闲 / running / 流式探测三种场景长按都能弹出菜单 |
 | OI-013 | resolved | 运行中手机只能停止、无法排队：按钮只认 running，有草稿也照旧取消当前任务。 | 已由 e50bd8b 修复：composerAction(running, hasDraft) 决定图标/描述/点击，有草稿时发送走 queue 模式，长按按钮仍可停止。 | [队列条验收](../qa/q5b-queue/validation.md) | 真机：空草稿=停止图标、打字=发送图标、发送后本轮继续且出现「1 queued messages」；4 项单测 |
 | OI-014 | resolved | 队列条删除排队消息失败，Toast 显示“可能已开始发送”。真实错误是 bridge 返回 HTTP 400：本机 3090 跑的 bridge 还是加入 `session/updateQueue` 白名单之前的旧二进制，该 RPC 被桥直接拒绝。 | 用当前源码重建 bridge 并重启后，真机走通“排队 → 删除 → 队列条消失”；客户端在收到 `queue-item-not-found` 时会丢弃旧 follow 重开快照，其他失败不再套用“已开始发送”的措辞。 | [队列条验收](../qa/q5b-queue/validation.md) | 真机删除成功、队列条消失；207 项单测全绿 |
+| OI-016 | resolved | 历史图片加载失败：运行中的桌面 Host 比开源 master 旧，要求 `{request:{sessionId, attachmentId}}`，而 master 要求完整引用；按 master 发请求被 `gateway/input-invalid` 拒绝。 | 已由 `d332457` 修复：先按新契约发（引用只保留 strict codec 允许的字段），遇到 `gateway/input-invalid` 再退回旧的 id 形式；图片字节按 attachmentId 缓存，切会话/切服清空。 | [附件验收](../qa/q5b-attachments/validation.md) | 216 项单测全绿；真机发送图片后 force-stop 重开仍显示，滚动返回仍显示 |

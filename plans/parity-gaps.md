@@ -37,3 +37,9 @@
 - **Finder / 宿主电脑“在文件夹显示”、桌面应用路径交接和桌面另存为窗口**：`ui-file-actions/src/client/context-menus.tsx:34`、`files.ts:52`、`ui-open-in-app/src/client/open-path.ts:16` 依赖 Desktop native；手机应下载 / 分享可访问文件，不能把服务端路径当手机本地路径打开。
 - **以原生 Web 兜底补齐私有 dshbridge 的所有缺口**：上游 `ui-open-in-app/src/client/context-menus.tsx:117` 有侧栏 / 外部浏览器入口，但手机 [MainActivity.kt](../app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt) 明确阻止私有连接打开同源管理页；沿用 OI-006 的传输边界，管理动作在服务端电脑本地 Web 完成，不新增任意 Web 代理。
 - **hover-only、右键-only、快捷键-only 的操作形态**：上表已有对应源码；保留动作语义，改成点按、可见菜单、长按和系统返回，不把桌面输入设备当作手机前提。
+
+## 契约版本提醒（2026-11-02 补）
+
+对标时**以运行中的 Host 版本为准，不要只看开源 master**。当天附件读取就踩过：master 的
+`session/attachment` 接受完整图片引用，而本机部署的桌面 Host 接受的是 `{request:{sessionId, attachmentId}}`，
+按 master 发请求会被 `gateway/input-invalid` 拒掉。上线前先用真机请求验证一次形状，再写实现。
