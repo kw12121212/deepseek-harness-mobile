@@ -145,6 +145,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var sessionList: LinearLayout
     private val drawerRenderGate = DrawerRenderGate()
     private var commandPopup: PopupWindow? = null
+    private val commandCatalogCache = CommandCatalog(logFailure = { error ->
+        val reason = (error as? HarnessApi.RemoteFailure)?.code ?: error.message ?: error.javaClass.simpleName
+        Log.w("CommandCatalog", "commands/list source=fallback reason=$reason")
+    })
 
     private var sessions = emptyList<HarnessApi.Session>()
     private var drawerWorkspaces = emptyList<HarnessApi.Workspace>()
@@ -157,7 +161,11 @@ class MainActivity : ComponentActivity() {
     private val manuallyExpandedWorkspaceKeys = mutableSetOf<String>()
     private var currentSession: HarnessApi.Session? = null
         set(value) {
-            if (field?.id != value?.id) clearAttachments()
+            if (field?.id != value?.id) {
+                clearAttachments()
+                commandCatalogCache.invalidate()
+                commandPopup?.dismiss()
+            }
             field = value
         }
     private var pendingOpenSessionId: String? = null
@@ -2814,6 +2822,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyServer(url: String) {
+        commandCatalogCache.invalidate()
+        commandPopup?.dismiss()
         clearAttachments()
         clearQueueUi()
         connectionEpoch += 1
@@ -4395,6 +4405,10 @@ class MainActivity : ComponentActivity() {
                 imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)); true
             }
             menu.add(tr("文件", "Files")).setOnMenuItemClickListener { filePicker.launch(arrayOf("*/*")); true }
+            menu.add(tr("命令", "Commands")).setOnMenuItemClickListener {
+                anchor.post { showCommands(anchor) }
+                true
+            }
             show()
         }
     }
@@ -5069,73 +5083,152 @@ class MainActivity : ComponentActivity() {
 
     private fun showCommands(anchor: View) {
         if (commandPopup?.isShowing == true) return
-        val commands = listOf(
-            "compact" to tr("压缩较早的对话历史", "Compact older conversation history"),
-            "export" to tr("将此会话日志下载为 ZIP", "Download this session log as a ZIP archive"),
-            "feedback" to tr("记录对此会话的反馈", "Record feedback about this session"),
-            "goal" to tr("设置或查看长任务目标", "Set or view the goal for a long-running task"),
-            "permission" to tr("切换权限预设（沙盒与审批策略）", "Switch the permission preset (sandbox mode + approval policy)"),
-            "plan" to tr("进入或退出计划模式", "Enter or leave plan mode"),
-        )
+        val sourceApi = api
+        val sourceServer = serverUrl
+        val sessionId = currentSession?.id
+        val fallback = fallbackCommands(::tr)
         val surface = menuSurface()
         surface.addView(menuSection(tr("命令", "Commands")))
-        var popup: PopupWindow? = null
-        commands.forEach { (name, description) ->
-            surface.addView(commandMenuRow(name, description) {
-                popup?.dismiss()
-                when (name) {
-                    "compact" -> currentSession?.id?.let { runCommand(it, "/compact") }
-                    "export" -> exportSessionLog()
-                    "permission" -> anchor.post { showPermissionPicker() }
-                    else -> insertCommand(name)
-                }
-            })
+        surface.addView(menuSection(tr("正在载入…", "Loading…")))
+        val popup = popupFor(anchor, surface, 340).apply {
+            inputMethodMode = PopupWindow.INPUT_METHOD_NEEDED
+            softInputMode = android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         }
-        val scroll = ScrollView(this).apply {
-            isVerticalScrollBarEnabled = false
-            addView(surface, ViewGroup.LayoutParams(MATCH, WRAP))
-        }
-        popup = popupFor(anchor, scroll, 300).apply {
-            setOnDismissListener {
-                commandPopup = null
-                anchor.contentDescription = tr("命令", "Commands")
-                anchor.animate().cancel()
-                anchor.animate().rotation(0f).setDuration(COMMAND_BUTTON_ROTATION_MS).start()
-            }
+        val originalDescription = anchor.contentDescription
+        popup.setOnDismissListener {
+            if (commandPopup === popup) commandPopup = null
+            anchor.contentDescription = originalDescription
+            anchor.animate().cancel()
+            anchor.animate().rotation(0f).setDuration(COMMAND_BUTTON_ROTATION_MS).start()
         }
         commandPopup = popup
         anchor.contentDescription = tr("收起命令菜单", "Close commands menu")
         anchor.animate().cancel()
         anchor.animate().rotation(-45f).setDuration(COMMAND_BUTTON_ROTATION_MS).start()
-        showPopupAbove(anchor, popup, scroll)
+        showPopupAbove(anchor, popup, surface)
+        if (sessionId == null || sourceServer == null) {
+            Log.w("CommandCatalog", "commands/list source=fallback reason=no-session")
+            renderCommandCatalog(anchor, popup, surface, fallback)
+            return
+        }
+        worker.execute {
+            val commands = commandCatalogCache.load(sourceServer to sessionId, fallback) {
+                sourceApi.commandCatalog(sessionId).also {
+                    if (BuildConfig.DEBUG) Log.d("CommandCatalog", "source=host count=${it.size}")
+                }
+            }
+            mainHandler.post {
+                if (api !== sourceApi || serverUrl != sourceServer || currentSession?.id != sessionId ||
+                    commandPopup !== popup || !popup.isShowing || isFinishing || isDestroyed) return@post
+                renderCommandCatalog(anchor, popup, surface, commands)
+            }
+        }
     }
 
-    private fun commandMenuRow(name: String, description: String, action: () -> Unit) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
+    private fun renderCommandCatalog(anchor: View, popup: PopupWindow, surface: LinearLayout, commands: List<CommandInfo>) {
+        surface.removeAllViews()
+        surface.addView(menuSection(tr("命令", "Commands")))
+        val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = true
+            addView(rows, ViewGroup.LayoutParams(MATCH, WRAP))
+        }
+        val filter = if (commands.size > 8) EditText(this).apply {
+            hint = tr("过滤命令", "Filter commands")
+            contentDescription = hint
+            textSize = 14f
+            setTextColor(COLOR_TEXT)
+            setHintTextColor(COLOR_MUTED)
+            setSingleLine(true)
+            setPadding(dp(10), 0, dp(10), 0)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        } else null
+        filter?.let { surface.addView(it, LinearLayout.LayoutParams(MATCH, dp(48))) }
+        surface.addView(scroll, LinearLayout.LayoutParams(MATCH, WRAP))
+        surface.isFocusableInTouchMode = true
+        surface.requestFocus()
+        fun renderMatches() {
+            rows.removeAllViews()
+            val matches = filterCommands(commands, filter?.text?.toString().orEmpty())
+            if (matches.isEmpty()) rows.addView(menuSection(tr("没有匹配命令", "No matching commands")))
+            matches.forEach { command ->
+                rows.addView(commandMenuRow(command) {
+                    popup.dismiss()
+                    when (command.name) {
+                        "compact" -> currentSession?.id?.let { runCommand(it, "/compact") }
+                        "export" -> exportSessionLog()
+                        "permission" -> anchor.post { showPermissionPicker() }
+                        else -> insertCommand(command.name)
+                    }
+                })
+            }
+            positionCommandPopup(anchor, popup, surface, scroll)
+        }
+        filter?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = renderMatches()
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        // Refit the scroll area when the IME reduces the visible window.
+        val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+            if (popup.isShowing) positionCommandPopup(anchor, popup, surface, scroll)
+        }
+        anchor.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+        surface.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) = Unit
+            override fun onViewDetachedFromWindow(v: View) {
+                anchor.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
+            }
+        })
+        renderMatches()
+    }
+
+    private fun positionCommandPopup(anchor: View, popup: PopupWindow, surface: LinearLayout, scroll: ScrollView) {
+        val visible = android.graphics.Rect().also { anchor.getWindowVisibleDisplayFrame(it) }
+        val location = IntArray(2).also(anchor::getLocationOnScreen)
+        val width = minOf(dp(340), visible.width() - dp(16)).coerceAtLeast(dp(48))
+        val heightLimit = minOf(dp(420), location[1] - visible.top - dp(8)).coerceAtLeast(dp(48))
+        val fixedHeight = surface.paddingTop + surface.paddingBottom +
+            (0 until surface.childCount).map { surface.getChildAt(it) }.filter { it !== scroll }.sumOf { it.layoutParams.height }
+        val rows = scroll.getChildAt(0)
+        rows.measure(View.MeasureSpec.makeMeasureSpec(width - surface.paddingLeft - surface.paddingRight, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        val scrollHeight = minOf(rows.measuredHeight, (heightLimit - fixedHeight).coerceAtLeast(dp(30)))
+        if (scroll.layoutParams.height != scrollHeight) {
+            scroll.layoutParams = LinearLayout.LayoutParams(MATCH, scrollHeight)
+        }
+        popup.update(anchor, 0, -anchor.height - fixedHeight - scrollHeight - dp(8), width, fixedHeight + scrollHeight)
+    }
+
+    private fun commandMenuRow(command: CommandInfo, action: () -> Unit) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(10), dp(5), dp(10), dp(5))
+        setPadding(dp(10), 0, dp(10), 0)
         isClickable = true
         isFocusable = true
-        background = rounded(Color.TRANSPARENT, 10f)
-        contentDescription = "$name, $description"
+        val feedback = TypedValue().also { theme.resolveAttribute(android.R.attr.selectableItemBackground, it, true) }
+        setBackgroundResource(feedback.resourceId)
+        contentDescription = listOfNotNull("/${command.name}", command.description, command.inputHint).joinToString(", ")
         addView(TextView(this@MainActivity).apply {
-            text = name
+            text = "/${command.name}"
             textSize = 14f
             setTextColor(COLOR_TEXT)
             includeFontPadding = false
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL
-        }, LinearLayout.LayoutParams(MATCH, dp(22)))
+        }, LinearLayout.LayoutParams(0, MATCH, 0.45f))
         addView(TextView(this@MainActivity).apply {
-            text = description
-            textSize = 11f
+            text = command.description
+            textSize = 12f
             setTextColor(COLOR_MUTED)
             includeFontPadding = false
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL
-        }, LinearLayout.LayoutParams(MATCH, dp(20)))
+        }, LinearLayout.LayoutParams(0, MATCH, 0.55f))
         setOnClickListener { action() }
-        layoutParams = LinearLayout.LayoutParams(MATCH, dp(54))
+        layoutParams = LinearLayout.LayoutParams(MATCH, dp(48))
     }
 
     private fun insertCommand(name: String, trailingSpace: Boolean = true) {
@@ -6170,6 +6263,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        commandCatalogCache.invalidate()
+        commandPopup?.dismiss()
         clearAttachments()
         attachmentExecutor.shutdownNow()
         attachmentReader.shutdownNow()

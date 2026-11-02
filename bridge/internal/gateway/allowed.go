@@ -1,6 +1,7 @@
 package gateway
 
 var allowedRPC = map[string]bool{
+	"commands/list":                 true,
 	"session/attachment":            true,
 	"fileUploads/upload":            true,
 	"session/updateQueue":           true,

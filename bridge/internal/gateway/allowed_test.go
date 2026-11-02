@@ -2,6 +2,31 @@ package gateway
 
 import "testing"
 
+func TestCommandsListRPCIsNarrowlyAllowed(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		endpoint string
+		allowed  bool
+	}{
+		{"list", "commands/list", true},
+		{"listAll", "commands/listAll", false},
+		{"suffix", "commands/listAnything", false},
+		{"slash", "commands/list/", false},
+		{"singular", "command/list", false},
+		{"wildcard", "commands/*", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if allowedRPC[test.endpoint] != test.allowed {
+				t.Errorf("RPC allowance for %s = %t, want %t", test.endpoint, allowedRPC[test.endpoint], test.allowed)
+			}
+			frame := `{"type":"open","streamId":"commands","endpoint":"` + test.endpoint + `","payload":{"args":{}}}`
+			if validFrame([]byte(frame)) {
+				t.Errorf("commands endpoint unexpectedly allowed as a stream: %s", test.endpoint)
+			}
+		})
+	}
+}
+
 func TestAttachmentRPCsAreNarrowlyAllowed(t *testing.T) {
 	for _, test := range []struct {
 		name     string

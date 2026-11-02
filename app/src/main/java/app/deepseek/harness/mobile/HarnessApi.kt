@@ -28,6 +28,8 @@ internal class HarnessApi(
     private val transport: (() -> HarnessTransport)? = null,
 ) {
     private val sessionMetadata = java.util.concurrent.ConcurrentHashMap<String, Session>()
+    fun commandCatalog(sessionId: String): List<CommandInfo> =
+        parseCommands(remoteValue("commands/list", JSONObject().put("agentId", sessionId)))
     private val archivedSessionsByServer = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
     val archivedSessionIds: Set<String>
         get() = archivedSessionsByServer[baseUrl()].orEmpty()
