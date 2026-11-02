@@ -13,6 +13,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -116,6 +117,12 @@ internal class HarnessApi(
 
     // Mixed attachment content has no lossless plain-text edit representation.
     data class QueuedPrompt(val id: String, val text: String?, val target: String)
+
+    data class UploadedFile(val receiptId: String, val file: JSONObject) {
+        fun promptContent(): JSONObject = JSONObject().put("type", "file").put("receiptId", receiptId)
+    }
+
+    data class ReadAttachment(val attachment: JSONObject, val bytes: ByteArray)
 
     data class ContextUsage(
         val usedTokens: Long,
@@ -573,6 +580,40 @@ internal class HarnessApi(
             put("model", model.id)
             if (effort != null) put("reasoningEffort", effort)
         })
+    }
+
+    fun imageContent(bytes: ByteArray, mediaType: String, name: String? = null): JSONObject {
+        require(mediaType in setOf("image/png", "image/jpeg", "image/webp", "image/gif")) { "Unsupported image media type" }
+        require(bytes.isNotEmpty()) { "Image must not be empty" }
+        return JSONObject().put("type", "image").put("mediaType", mediaType)
+            .put("data", Base64.getEncoder().encodeToString(bytes))
+            .apply { name?.let { put("name", it) } }
+    }
+
+    fun uploadFile(sessionId: String, bytes: ByteArray, name: String? = null): UploadedFile {
+        val request = JSONObject().put("data", Base64.getEncoder().encodeToString(bytes))
+            .apply { name?.let { put("name", it) } }
+        val receipt = remoteValue("fileUploads/upload", JSONObject().put("agentId", sessionId).put("request", request))
+            as? JSONObject ?: throw IOException("Invalid file upload receipt")
+        val receiptId = receipt.getString("receiptId")
+        val file = receipt.getJSONObject("file")
+        if (receiptId.isBlank() || file.getString("attachmentId").isBlank()
+            || file.getString("name").isEmpty() || file.getLong("bytes") < 0) {
+            throw IOException("Invalid file upload receipt")
+        }
+        return UploadedFile(receiptId, file)
+    }
+
+    fun readAttachment(sessionId: String, attachment: JSONObject): ReadAttachment {
+        val stored = callRemote("session/attachment", JSONObject().put("sessionId", sessionId).put("attachment", attachment))
+        val encoded = stored.getString("data")
+        val decoded = try {
+            Base64.getDecoder().decode(encoded)
+        } catch (error: IllegalArgumentException) {
+            throw IOException("Invalid attachment base64", error)
+        }
+        if (Base64.getEncoder().encodeToString(decoded) != encoded) throw IOException("Invalid attachment base64")
+        return ReadAttachment(stored.getJSONObject("attachment"), decoded)
     }
 
     fun prompt(sessionId: String, content: JSONArray, mode: String = "queue", requestId: String = UUID.randomUUID().toString()) {

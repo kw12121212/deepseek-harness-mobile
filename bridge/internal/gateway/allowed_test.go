@@ -2,6 +2,33 @@ package gateway
 
 import "testing"
 
+func TestAttachmentRPCsAreNarrowlyAllowed(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		endpoint string
+		allowed  bool
+	}{
+		{"read", "session/attachment", true},
+		{"upload", "fileUploads/upload", true},
+		{"readSuffix", "session/attachmentAnything", false},
+		{"readSlash", "session/attachment/", false},
+		{"uploadSuffix", "fileUploads/uploadAnything", false},
+		{"uploadSlash", "fileUploads/upload/", false},
+		{"inventedUpload", "session/upload", false},
+		{"wildcard", "fileUploads/*", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if allowedRPC[test.endpoint] != test.allowed {
+				t.Errorf("RPC allowance for %s = %t, want %t", test.endpoint, allowedRPC[test.endpoint], test.allowed)
+			}
+			frame := `{"type":"open","streamId":"attachment","endpoint":"` + test.endpoint + `","payload":{"args":{}}}`
+			if validFrame([]byte(frame)) {
+				t.Errorf("attachment endpoint unexpectedly allowed as a stream: %s", test.endpoint)
+			}
+		})
+	}
+}
+
 func TestSessionUpdateQueueRPCIsNarrowlyAllowed(t *testing.T) {
 	for _, test := range []struct {
 		endpoint string
