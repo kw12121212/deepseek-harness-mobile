@@ -69,3 +69,17 @@ flowchart LR
 审批和前台问答属于发出请求的原生 dsh Host 进程。单独启动 Web Host 与 Desktop 内置 Host 会有不同的实时事件队列；版本相同不代表它们共享正在等待的审批。Android 要处理 Desktop 里的任务，dshbridge 的 `upstream` 必须指向那个 Desktop Host，并使用该 Host 的内部认证。
 
 2026-10-10 的交互补齐验收发现：原先局域网 dshbridge 连接的是独立 Web Host `127.0.0.1:3080`，而截图任务属于 Desktop Host `127.0.0.1:19387`。本轮改用后者及它的现有 Cookie。端口来自本机实际运行的 Desktop profile，不能当作所有安装的固定端口。手机到 dshbridge 的设备认证与随机路径继续独立维护。详细结果见 [交互验收记录](../qa/interaction-parity/validation.md)。
+
+## 为什么要有 dshbridge：安全边界（2026-11-02 记录）
+
+原生 dsh 对外是普通 HTTP 接口，直接把它暴露到公网意味着把一整套 RPC 面交给网络。即使客户端自身做了权限控制，
+路径穿越、越权调用这类问题也只需要一个入口失守。因此本项目在设备与 dsh 之间固定放一层自研的 dshbridge：
+
+- **设备 ↔ dshbridge**：HTTPS / WSS + 设备 token，一次性配对、可撤销；
+- **dshbridge ↔ dsh**：只走回环，用原生 token / Cookie 认证，不对外；
+- **RPC 白名单**：每个能力都要在 `bridge/internal/gateway/allowed.go` 里显式放行，测试同时断言"相近名称被拒"、
+  "不能当 stream 打开"。新增能力（如 `session/updateQueue`、`workspace/insertBefore`）都按这个流程走。
+
+**这条边界决定了"对标桌面"的含义**：我们复刻的是 dsh 的**使用体验**（信息架构、措辞、状态、交互），
+不是它的传输方式。桌面端跑在本机、直连回环；本项目的客户端跑在远端，必须经过 bridge 的认证与白名单。
+所以凡是需要新 RPC 的功能，先过白名单评审，再谈 UI——这也是"体验很像、但不完全一样"的来源。
