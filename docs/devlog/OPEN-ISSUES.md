@@ -19,6 +19,8 @@
 
 | OI-015 | open | bridge 拒绝 RPC 时只回 HTTP 400，响应体里的错误码没有传到客户端，排查时只能看到 `Private server HTTP 400`。 | 让客户端读取 4xx 响应体的 `error` 字段，或让 bridge 在回包中带上原因；同时把日志里的 code 打全。 | [队列条验收](../qa/q5b-queue/validation.md) |
 
+| OI-016 | open | 从历史重新加载图片失败：`session/attachment` 返回网关参数校验错误，刚发送的图片靠内存缓存能显示，重开会话后图片出不来。 | 逐个证伪：request 包装方式、引用里的多余键（strict codec 不接受多余字段）、会话身份是否属于父会话。 | [附件验收](../qa/q5b-attachments/validation.md) |
+
 ## 已解决
 
 | 编号 | 状态 | 怎么解决 | 记录 | 怎么确认 |
