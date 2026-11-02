@@ -51,19 +51,21 @@
 
 ## 真机验收（2026-11-01 23:00，Pixel 10 / 57151FDCR006YV）
 
+> 截图含真实会话标题，只留在本地 `.qa-evidence/`（已 gitignore），不进公开仓库。
+
 链路打通：`adb reverse tcp:3090 tcp:3090` 把手机 127.0.0.1:3090 指到本机 dshbridge；
 用 debug 证书（与设备上 `.qa` 包同签名 658DE1B6…）以 `applicationIdSuffix = ".qa"` 装上去，
 保留原有配对数据，版本 `1.1.2-qa`。
 
 | 步骤 | 结果 | 证据 |
 | --- | --- | --- |
-| 长按会话 → 菜单 | ✅ 显示 Rename / Fork session / **Archive** | [01](device/01-actions-menu.png) |
-| 点 Archive → 二次确认 | ✅ 文案 "Archive this session? It will be hidden from the session list." | [02](device/02-archive-confirm.png) |
-| 确认归档 | ✅ 会话从列表消失；当前会话被归档后自动跳到另一条 | [04](device/04-after-archive.png) |
-| 抽屉底部 | ✅ 出现 **Archived (1)** 折叠分区 | [03](device/03-archived-section.png) |
-| 展开归档区 | ✅ 分区展开后列出已归档会话（标题 + 相对时间） | [03](device/03-archived-section.png) |
-| 长按已归档会话 | ✅ 菜单只给 Unarchive | [05](device/05-unarchive-menu.png) |
-| 取消归档 | ✅ 会话消失、Archived 分区随之隐藏 | [06](device/06-after-unarchive.png) |
+| 长按会话 → 菜单 | ✅ 显示 Rename / Fork session / **Archive** | [01](本地证据：.qa-evidence/session-archive/01-actions-menu.png，不入库) |
+| 点 Archive → 二次确认 | ✅ 文案 "Archive this session? It will be hidden from the session list." | [02](本地证据：.qa-evidence/session-archive/02-archive-confirm.png，不入库) |
+| 确认归档 | ✅ 会话从列表消失；当前会话被归档后自动跳到另一条 | [04](本地证据：.qa-evidence/session-archive/04-after-archive.png，不入库) |
+| 抽屉底部 | ✅ 出现 **Archived (1)** 折叠分区 | [03](本地证据：.qa-evidence/session-archive/03-archived-section.png，不入库) |
+| 展开归档区 | ✅ 分区展开后列出已归档会话（标题 + 相对时间） | [03](本地证据：.qa-evidence/session-archive/03-archived-section.png，不入库) |
+| 长按已归档会话 | ✅ 菜单只给 Unarchive | [05](本地证据：.qa-evidence/session-archive/05-unarchive-menu.png，不入库) |
+| 取消归档 | ✅ 会话消失、Archived 分区随之隐藏 | [06](本地证据：.qa-evidence/session-archive/06-after-unarchive.png，不入库) |
 
 注意：归档 RPC 需要 bridge 也更新。本机 dshbridge（state `qa-2026-11-01`）用当前源码重建后
 `workspace/archiveSession` 才通；旧 bridge 直接返回 `Private server HTTP 400`——这正好证明

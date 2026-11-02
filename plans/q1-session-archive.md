@@ -11,16 +11,16 @@
 
 **现有入口与缺口**
 
-- 抽屉已有搜索、分组和“手动／最近更新”选项；“手动”目前只保留 `session/list` 返回顺序，没有移动操作。[MainActivity.kt:1645](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:1645)、[MainActivity.kt:1692](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:1692)、[MainActivity.kt:3836](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:3836)
-- 会话长按菜单只有重命名、Fork；列表只过滤空白会话，未读取归档集合。[MainActivity.kt:3931](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:3931)、[MainActivity.kt:3967](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:3967)
-- `workspace/follow` 已被调用，但只解析 `items`，丢弃基线中的 `archivedSessionIds`；`session/list` 本身仍会返回已归档会话。[HarnessApi.kt:168](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/HarnessApi.kt:168)、[HarnessApi.kt:206](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/HarnessApi.kt:206)、[DSH Host 合同](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/dsh-v0.2.0-rc.2/packages/api/workspace-controller/src/types.ts)
-- 刷新时的默认选中逻辑也未排除归档会话；仅过滤抽屉会导致它仍在主视图打开。[MainActivity.kt:2515](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:2515)
-- API 没有归档方法，RPC 参数封装和 bridge 白名单也没有相应方法。[HarnessApi.kt:420](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/HarnessApi.kt:420)、[HarnessApi.kt:1074](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/HarnessApi.kt:1074)、[allowed.go:3](/Users/yuri/Desktop/deepseek-harness-mobile/bridge/internal/gateway/allowed.go:3)
+- 抽屉已有搜索、分组和“手动／最近更新”选项；“手动”目前只保留 `session/list` 返回顺序，没有移动操作。[MainActivity.kt:1645](./app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:1645)、[MainActivity.kt:1692](./app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:1692)、[MainActivity.kt:3836](./app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:3836)
+- 会话长按菜单只有重命名、Fork；列表只过滤空白会话，未读取归档集合。[MainActivity.kt:3931](./app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:3931)、[MainActivity.kt:3967](./app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:3967)
+- `workspace/follow` 已被调用，但只解析 `items`，丢弃基线中的 `archivedSessionIds`；`session/list` 本身仍会返回已归档会话。[HarnessApi.kt:168](./app/src/main/java/app/deepseek/harness/mobile/HarnessApi.kt:168)、[HarnessApi.kt:206](./app/src/main/java/app/deepseek/harness/mobile/HarnessApi.kt:206)、[DSH Host 合同](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/dsh-v0.2.0-rc.2/packages/api/workspace-controller/src/types.ts)
+- 刷新时的默认选中逻辑也未排除归档会话；仅过滤抽屉会导致它仍在主视图打开。[MainActivity.kt:2515](./app/src/main/java/app/deepseek/harness/mobile/MainActivity.kt:2515)
+- API 没有归档方法，RPC 参数封装和 bridge 白名单也没有相应方法。[HarnessApi.kt:420](./app/src/main/java/app/deepseek/harness/mobile/HarnessApi.kt:420)、[HarnessApi.kt:1074](./app/src/main/java/app/deepseek/harness/mobile/HarnessApi.kt:1074)、[allowed.go:3](./bridge/internal/gateway/allowed.go:3)
 
 **API 与数据**
 
 1. 在 `HarnessApi` 增加 `WorkspaceSnapshot(items, archivedSessionIds)`，让 `workspaces()` 返回完整基线；增加 `archiveSession(sessionId, stopActivity: Boolean = false)`、`unarchiveSession(sessionId)`。RPC 名称分别是 **`workspace/archiveSession`**、**`workspace/unarchiveSession`**，参数均包在 `{request: ...}`；归档请求含 `sessionId` 和可选 `stopActivity`，返回集合为 `archivedSessionIds`。[固定版本的 Host 类型定义](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/dsh-v0.2.0-rc.2/packages/api/workspace-controller/src/types.ts)
-2. 在 [allowed.go:4](/Users/yuri/Desktop/deepseek-harness-mobile/bridge/internal/gateway/allowed.go:4) 的 `allowedRPC` **只加上述两个精确条目**；不加通配符或 stream 条目。
+2. 在 [allowed.go:4](./bridge/internal/gateway/allowed.go:4) 的 `allowedRPC` **只加上述两个精确条目**；不加通配符或 stream 条目。
 3. 排序采用 DSH Web 的**客户端本地会话显示顺序**，为工作区、未分组及单一列表分别持久化完整 ID 序列；最近更新按 `updatedAt` 降序，时间相同用 ID 稳定排序。`workspace/insertSessionBefore` 是另一种 Host 持久排序合同，本轮不调用、不开放白名单。[Web 排序合同](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.0-rc.2/packages/client/ui-workspace/README.md)
 
 **交互草图**
@@ -46,7 +46,7 @@
 
 **风险与边界**
 
-- `HarnessRpc` 目前只保留远端错误码与消息，未保留 `workspace/session-active` 的 `activity` 详情；提交一需扩展错误解析，才能准确列出会被停止的工作。[HarnessRpc.kt:18](/Users/yuri/Desktop/deepseek-harness-mobile/app/src/main/java/app/deepseek/harness/mobile/HarnessRpc.kt:18)
+- `HarnessRpc` 目前只保留远端错误码与消息，未保留 `workspace/session-active` 的 `activity` 详情；提交一需扩展错误解析，才能准确列出会被停止的工作。[HarnessRpc.kt:18](./app/src/main/java/app/deepseek/harness/mobile/HarnessRpc.kt:18)
 - 归档集合与会话列表分两次获取，可能短暂不同步；刷新应以最新完整基线覆盖旧状态，失败时不把未知会话当作未归档。手动顺序属于本机偏好，不会跨设备同步。
 - 本轮不做会话删除、置顶、跨工作区移动、工作区排序、Web 全量拖拽或后台持续订阅改造。以上是规划；**未改文件、未运行 Gradle 或测试**。
 

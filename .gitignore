@@ -29,3 +29,4 @@ signing/
 # Private transport deployment state and build output
 bridge/dist/
 bridge/state/
+.qa-evidence/

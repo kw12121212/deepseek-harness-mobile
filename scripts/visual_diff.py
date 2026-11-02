@@ -8,7 +8,7 @@ Usage:
 Exit codes: 0 = under threshold, 1 = over threshold or size mismatch, 2 = usage/IO error.
 
 Needs Pillow; numpy is used when present. The DSH bundled interpreter already has both:
-    /Users/yuri/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3
+    ~/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3
 """
 import argparse
 import sys
