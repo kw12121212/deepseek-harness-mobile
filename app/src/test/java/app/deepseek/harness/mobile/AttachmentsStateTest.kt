@@ -8,6 +8,26 @@ class AttachmentsStateTest {
     private val state = AttachmentsState()
     private val bytes = byteArrayOf(1, 2)
 
+    @Test fun imageCacheHitsAndClearInvalidatesOldGeneration() {
+        var downloads = 0
+        val first = state.imageCacheGeneration()
+        fun fetch(generation: Long) = state.loadImage("image", generation) { downloads++; byteArrayOf(downloads.toByte()) }
+        assertArrayEquals(byteArrayOf(1), fetch(first))
+        assertArrayEquals(byteArrayOf(1), fetch(first))
+        state.clear()
+        assertArrayEquals(byteArrayOf(2), fetch(first))
+        val second = state.imageCacheGeneration()
+        assertArrayEquals(byteArrayOf(3), fetch(second))
+        assertArrayEquals(byteArrayOf(3), fetch(second))
+        assertEquals(3, downloads)
+    }
+
+    @Test fun imageCacheRetriesFailedDownloads() {
+        val generation = state.imageCacheGeneration()
+        assertThrows(IllegalStateException::class.java) { state.loadImage("image", generation) { error("offline") } }
+        assertArrayEquals(bytes, state.loadImage("image", generation) { bytes })
+    }
+
     @Test fun addingImagesAndFilesAndRemovingUpdatesDraft() {
         val image = state.addImage("a.png", "image/png", bytes)
         val file = state.addFile("b.txt", bytes)

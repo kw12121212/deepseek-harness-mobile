@@ -3470,12 +3470,14 @@ class MainActivity : ComponentActivity() {
                 outer.addView(image)
                 val sessionId = currentSession?.id
                 val selectedApi = api
+                val selectedServer = serverUrl
+                val cacheGeneration = attachments.imageCacheGeneration()
                 if (sessionId != null) attachmentExecutor.execute {
                     try {
-                        val bytes = attachments.imageFor(ref.optString("attachmentId")) ?: selectedApi.readAttachment(sessionId, ref).bytes
+                        val bytes = attachments.loadImage(ref.getString("attachmentId"), cacheGeneration) { selectedApi.readAttachment(sessionId, ref).bytes }
                         val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         runOnUiThread {
-                            if (currentSession?.id == sessionId && bitmap != null) {
+                            if (currentSession?.id == sessionId && serverUrl == selectedServer && bitmap != null) {
                                 image.setImageBitmap(bitmap)
                                 image.contentDescription = tr("打开原图", "Open original image")
                                 image.setOnClickListener { showAttachmentPreview(bytes) }

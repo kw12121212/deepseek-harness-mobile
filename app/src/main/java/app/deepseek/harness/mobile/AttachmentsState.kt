@@ -11,13 +11,27 @@ internal class AttachmentsState {
         val isImage: Boolean get() = mediaType != null
     }
     private val entries = mutableListOf<Item>()
-    private val sentImages = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+    private val sentImages = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.FutureTask<ByteArray>>()
     fun rememberImage(bytes: ByteArray) {
         val digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
         val key = "sha256:" + digest.joinToString("") { "%02x".format(it) }
-        sentImages[key] = bytes
+        sentImages[key] = java.util.concurrent.FutureTask { bytes }.also { it.run() }
     }
-    fun imageFor(id: String): ByteArray? = sentImages[id]
+    @Volatile private var imageGeneration = 0L
+    fun imageCacheGeneration(): Long = imageGeneration
+    fun loadImage(id: String, generation: Long, download: () -> ByteArray): ByteArray {
+        val task = java.util.concurrent.FutureTask(download)
+        val selected = synchronized(sentImages) {
+            if (generation == imageGeneration) sentImages.putIfAbsent(id, task) ?: task else task
+        }
+        if (selected === task) task.run()
+        try {
+            return selected.get()
+        } catch (error: java.util.concurrent.ExecutionException) {
+            sentImages.remove(id, selected)
+            throw (error.cause ?: error)
+        }
+    }
     val items: List<Item> get() = entries.toList()
     private var nextId = 0L
     var pendingReads: Int = 0
@@ -42,7 +56,7 @@ internal class AttachmentsState {
         return id
     }
     fun remove(id: Long) { entries.removeAll { it.id == id } }
-    fun clear() { entries.clear(); sentImages.clear(); pendingReads = 0 }
+    fun clear() { entries.clear(); synchronized(sentImages) { imageGeneration++; sentImages.clear() }; pendingReads = 0 }
     fun fail(id: Long) = change(id, Status.UPLOADING) { it.copy(status = Status.FAILED) }
     fun complete(id: Long, receiptId: String) {
         require(receiptId.isNotBlank())

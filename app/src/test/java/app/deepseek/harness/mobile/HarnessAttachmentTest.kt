@@ -78,6 +78,17 @@ class HarnessAttachmentTest {
         assertEquals(before, reference.toString())
     }
 
+    @Test fun readFiltersUnexpectedFieldsAndFallsBackForOlderGateway() {
+        val transport = AttachmentTransport().apply { legacy = true }
+        val reference = JSONObject(IMAGE_REF).put("type", "image").put("offloaded", true)
+        reference.getJSONObject("originalDimensions").put("unexpected", 1)
+        assertArrayEquals(byteArrayOf(0, -1, -128), api(transport).readAttachment("session-a", reference).bytes)
+        assertEquals(2, transport.requests.size)
+        val modern = transport.requests[0].getJSONObject("payload").getJSONObject("args")
+        assertJson("""{"request":{"sessionId":"session-a","attachment":$IMAGE_REF}}""", modern)
+        assertJson("""{"request":{"sessionId":"session-a","attachmentId":"sha256:image"}}""", transport.args())
+    }
+
     @Test fun readRejectsMalformedOrNonCanonicalBase64() {
         val transport = AttachmentTransport()
         val api = api(transport)
@@ -131,12 +142,17 @@ class HarnessAttachmentTest {
 
     private class AttachmentTransport : HarnessTransport {
         val requests = mutableListOf<JSONObject>()
+        var legacy = false
         var reject = false
         var networkFailure = false
         var readEncoding = "AP+A"
         fun args(): JSONObject = requests.last().getJSONObject("payload").getJSONObject("args")
         override fun rpc(envelope: JSONObject): JSONObject {
             requests += JSONObject(envelope.toString())
+            if (legacy && envelope.getString("method") == "session/attachment" && args().getJSONObject("request").has("attachment")) {
+                return JSONObject().put("type", "server-response").put("rpcId", envelope.getString("rpcId"))
+                    .put("result", JSONObject("""{"ok":false,"error":{"code":"gateway/input-invalid","message":"invalid"}}"""))
+            }
             if (reject && networkFailure) throw IOException("offline")
             val result = if (reject) JSONObject("""{"ok":false,"error":{"code":"session/attachment-invalid",
               "message":"attachment rejected","details":{"reason":"FILE_NOT_STAGED"}}}""") else {

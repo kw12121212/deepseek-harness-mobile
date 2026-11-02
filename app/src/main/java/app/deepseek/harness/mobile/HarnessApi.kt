@@ -605,7 +605,23 @@ internal class HarnessApi(
     }
 
     fun readAttachment(sessionId: String, attachment: JSONObject): ReadAttachment {
-        val stored = callRemote("session/attachment", JSONObject().put("sessionId", sessionId).put("attachment", attachment))
+        val reference = JSONObject().apply {
+            for (key in listOf("attachmentId", "mediaType", "bytes", "width", "height", "name", "originalDimensions")) {
+                if (attachment.has(key)) {
+                    val value = attachment.get(key)
+                    put(key, if (key == "originalDimensions" && value is JSONObject) {
+                        JSONObject().put("width", value.get("width")).put("height", value.get("height"))
+                    } else value)
+                }
+            }
+        }
+        val stored = try {
+            callRemote("session/attachment", JSONObject().put("sessionId", sessionId).put("attachment", reference))
+        } catch (error: RemoteFailure) {
+            if (error.code != "gateway/input-invalid") throw error
+            callRemote("session/attachment", JSONObject().put("sessionId", sessionId)
+                .put("attachmentId", reference.getString("attachmentId")))
+        }
         val encoded = stored.getString("data")
         val decoded = try {
             Base64.getDecoder().decode(encoded)
