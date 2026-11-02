@@ -2,6 +2,29 @@ package gateway
 
 import "testing"
 
+func TestSessionUpdateQueueRPCIsNarrowlyAllowed(t *testing.T) {
+	for _, test := range []struct {
+		endpoint string
+		allowed  bool
+	}{
+		{"session/updateQueue", true},
+		{"session/updateQueueAnything", false},
+		{"session/updateQueue/", false},
+		{"session/update", false},
+		{"session/*", false},
+	} {
+		t.Run(test.endpoint, func(t *testing.T) {
+			if allowedRPC[test.endpoint] != test.allowed {
+				t.Errorf("RPC allowance for %s = %t, want %t", test.endpoint, allowedRPC[test.endpoint], test.allowed)
+			}
+			frame := `{"type":"open","streamId":"queue","endpoint":"` + test.endpoint + `","payload":{"args":{}}}`
+			if validFrame([]byte(frame)) {
+				t.Errorf("queue endpoint unexpectedly allowed as a stream: %s", test.endpoint)
+			}
+		})
+	}
+}
+
 func TestWorkspaceDeleteRPCIsNarrowlyAllowed(t *testing.T) {
 	for _, endpoint := range []string{"workspace/delete", "workspace/insertBefore"} {
 		if !allowedRPC[endpoint] {

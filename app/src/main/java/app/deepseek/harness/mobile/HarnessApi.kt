@@ -114,6 +114,9 @@ internal class HarnessApi(
 
     data class TodoItem(val content: String, val status: String)
 
+    // Mixed attachment content has no lossless plain-text edit representation.
+    data class QueuedPrompt(val id: String, val text: String?, val target: String)
+
     data class ContextUsage(
         val usedTokens: Long,
         val contextWindow: Long,
@@ -133,6 +136,7 @@ internal class HarnessApi(
         val contextUsage: ContextUsage? = null,
         val runningStartedAt: Long? = null,
         val questions: List<PendingQuestion> = emptyList(),
+        val queuedPrompts: List<QueuedPrompt> = emptyList(),
     )
 
     data class PendingApproval(
@@ -377,6 +381,7 @@ internal class HarnessApi(
             ) else null,
             runningStartedAt = runningTurnStart(value.getJSONArray("events")),
             questions = parseContinuedQuestions(values?.optJSONObject("userQuestions"), sessionId, values?.optJSONObject("inbox")),
+            queuedPrompts = parseQueuedPrompts(values?.optJSONObject("inbox")),
         )
     }
 
@@ -578,6 +583,11 @@ internal class HarnessApi(
             put("content", content)
             put("clientTimeZone", java.util.TimeZone.getDefault().id)
         })
+    }
+
+    fun updateQueue(sessionId: String, itemId: String, action: SessionQueueAction) {
+        call("session/updateQueue", JSONObject().put("sessionId", sessionId)
+            .put("itemId", itemId).put("action", action.toJson()))
     }
 
     fun command(sessionId: String, command: String) {
@@ -1083,6 +1093,37 @@ internal class HarnessApi(
 
 }
 
+internal sealed class SessionQueueAction {
+    data class Edit(val text: String) : SessionQueueAction() {
+        init { require(text.isNotBlank()) { "Queue edit must include non-whitespace text" } }
+    }
+    data object Remove : SessionQueueAction()
+    data object Steer : SessionQueueAction()
+
+    fun toJson(): JSONObject = when (this) {
+        is Edit -> JSONObject().put("kind", "edit").put("content", JSONArray()
+            .put(JSONObject().put("type", "text").put("text", text)))
+        Remove -> JSONObject().put("kind", "remove")
+        Steer -> JSONObject().put("kind", "steer")
+    }
+}
+
+internal fun parseQueuedPrompts(inbox: JSONObject?): List<HarnessApi.QueuedPrompt> = buildList {
+    for (target in listOf("next-turn", "next-step")) {
+        val messages = inbox?.optJSONArray(target) ?: continue
+        for (index in 0 until messages.length()) {
+            val message = messages.optJSONObject(index) ?: continue
+            val id = (message.opt("id") as? String)?.takeIf(String::isNotBlank) ?: continue
+            val content = message.optJSONArray("content") ?: continue
+            val blocks = (0 until content.length()).map { content.optJSONObject(it) }
+            val text = if (blocks.all { it?.optString("type") == "text" && it.opt("text") is String }) {
+                blocks.joinToString("") { it!!.getString("text") }
+            } else null
+            add(HarnessApi.QueuedPrompt(id, text, target))
+        }
+    }
+}
+
 internal fun parseContinuedQuestions(values: JSONObject?, sessionId: String, inbox: JSONObject?): List<PendingQuestion> {
     val active = values?.optJSONArray("active") ?: return emptyList()
     val queued = inbox?.let(::queuedQuestionReplyIds).orEmpty()
@@ -1148,7 +1189,7 @@ internal fun JSONObject.optNullableString(name: String): String? =
 
 internal fun rc2Arguments(endpoint: String, payload: JSONObject): JSONObject = when (endpoint) {
     "session/list" -> JSONObject().put("_request", payload)
-    "session/page", "session/create", "session/projections", "session/selectModel", "session/rename", "session/fork", "session/prompt", "session/cancel", "workspace/create" -> JSONObject().put("request", payload)
+    "session/page", "session/create", "session/projections", "session/selectModel", "session/rename", "session/fork", "session/prompt", "session/cancel", "session/updateQueue", "workspace/create" -> JSONObject().put("request", payload)
     "workspace/archiveSession", "workspace/unarchiveSession", "workspace/rename", "workspace/delete",
     "workspace/insertBefore", "workspace/insertSessionBefore" -> JSONObject().put("request", payload)
     "agentPresets/select" -> JSONObject().put("agentId", payload.getString("sessionId")).put("agentPreset", payload.getString("agentPreset"))

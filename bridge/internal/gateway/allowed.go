@@ -1,6 +1,7 @@
 package gateway
 
 var allowedRPC = map[string]bool{
+	"session/updateQueue":           true,
 	"workspace/delete":              true,
 	"workspace/rename":              true,
 	"workspace/insertBefore":        true,
