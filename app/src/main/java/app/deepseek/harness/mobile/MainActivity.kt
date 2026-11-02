@@ -1608,7 +1608,11 @@ class MainActivity : ComponentActivity() {
         if (error == null || error is HarnessApi.RemoteFailure && error.code == "session/queue-item-not-found") {
             refresh(showSpinner = false)
         }
-        if (error != null) Toast.makeText(this, queueActionFailure(action, error), Toast.LENGTH_LONG).show()
+        if (error != null) {
+            val code = (error as? HarnessApi.RemoteFailure)?.code ?: error.javaClass.simpleName
+            Log.w("QueueAction", "updateQueue failed: " + code + " " + error.message, error)
+            Toast.makeText(this, queueActionFailure(action, error), Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun queueActionFailure(action: SessionQueueAction, error: Exception): String {
