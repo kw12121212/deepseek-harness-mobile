@@ -893,7 +893,10 @@ class MainActivity : ComponentActivity() {
             visibility = View.GONE
         }
         addView(queuePanelHost, LinearLayout.LayoutParams(MATCH, WRAP))
-        goalBar = GoalBarView(this@MainActivity, palette).apply { visibility = View.GONE }
+        goalBar = GoalBarView(this@MainActivity, palette).apply {
+            visibility = View.GONE
+            setOnClickListener { showGoalActions() }
+        }
         addView(goalBar, LinearLayout.LayoutParams(MATCH, dp(48)))
         val card = LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL
@@ -3195,6 +3198,109 @@ class MainActivity : ComponentActivity() {
                 if (serverUrl != origin) return@post
                 goalState.accept(sessionId, request, value)
                 renderGoal()
+            }
+        }
+    }
+
+    private fun showGoalActions() {
+        val goal = goalState.goal ?: return
+        val sessionId = goalState.sessionId ?: return
+        val actions = availableGoalActions(goal.phase)
+        val labels = actions.map { action ->
+            when (action) {
+                "edit" -> tr("编辑", "Edit")
+                "pause" -> tr("暂停", "Pause")
+                "resume" -> tr("恢复", "Resume")
+                else -> tr("清除", "Clear")
+            }
+        }.toTypedArray()
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), 0, dp(24), 0)
+        }
+        content.addView(TextView(this).apply {
+            text = "${goal.objective}\n\n${goal.phase} · ${goal.roundsStarted}/${goal.maxGoalRounds}"
+            textSize = 16f
+            setPadding(0, dp(12), 0, dp(12))
+        })
+        val scroll = ScrollView(this).apply { addView(content) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(tr("目标", "Goal"))
+            .setView(scroll)
+            .setNegativeButton(tr("取消", "Cancel"), null)
+            .create()
+        actions.forEachIndexed { index, action ->
+            content.addView(TextView(this).apply {
+                text = labels[index]
+                textSize = 16f
+                minHeight = dp(48)
+                gravity = Gravity.CENTER_VERTICAL
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    dialog.dismiss()
+                    when (action) {
+                        "edit" -> showGoalEdit(sessionId, goal)
+                        "clear" -> AlertDialog.Builder(this@MainActivity)
+                            .setMessage(tr("确定清除此目标？", "Clear this goal?"))
+                            .setNegativeButton(tr("取消", "Cancel"), null)
+                            .setPositiveButton(tr("清除", "Clear")) { _, _ -> performGoalAction(sessionId, goal, "clear") }
+                            .show()
+                        else -> performGoalAction(sessionId, goal, action)
+                    }
+                }
+            })
+        }
+        dialog.show()
+    }
+
+    private fun showGoalEdit(sessionId: String, goal: GoalInfo) {
+        val input = dialogEditText().apply {
+            setText(goal.objective)
+            setSelection(text.length)
+            minLines = 3
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
+        AlertDialog.Builder(this)
+            .setTitle(tr("编辑目标", "Edit goal"))
+            .setView(input)
+            .setNegativeButton(tr("取消", "Cancel"), null)
+            .setPositiveButton(tr("保存", "Save")) { _, _ -> performGoalAction(sessionId, goal, "edit", input.text.toString()) }
+            .show()
+    }
+
+    private fun performGoalAction(sessionId: String, goal: GoalInfo, action: String, objective: String? = null) {
+        if (goalState.sessionId != sessionId) return
+        val request = goalState.beginRefresh()
+        val origin = serverUrl
+        val goalApi = api
+        worker.execute {
+            val failure = try {
+                goalApi.goalAction(sessionId, goal, action, objective)
+                null
+            } catch (error: Exception) {
+                Log.w("HarnessGoal", "Goal $action failed", error)
+                error
+            }
+            val refreshed = runCatching { goalApi.goal(sessionId) }
+            refreshed.exceptionOrNull()?.let { Log.w("HarnessGoal", "Unable to refresh goal", it) }
+            mainHandler.post {
+                if (serverUrl != origin || goalState.sessionId != sessionId) return@post
+                if (refreshed.isSuccess) {
+                    val latest = refreshed.getOrNull()
+                    goalState.accept(sessionId, request, latest)
+                    renderGoal()
+                    if (failure != null && (latest?.id != goal.id || latest.revision != goal.revision)) {
+                        val code = (failure as? HarnessApi.RemoteFailure)?.code ?: failure.javaClass.simpleName
+                        Toast.makeText(this, "${tr("目标已被修改，已刷新", "Goal changed; refreshed")} ($code)", Toast.LENGTH_SHORT).show()
+                        return@post
+                    }
+                }
+                val error = failure ?: refreshed.exceptionOrNull()
+                if (error != null) {
+                    val code = (error as? HarnessApi.RemoteFailure)?.code ?: error.javaClass.simpleName
+                    Toast.makeText(this, code, Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

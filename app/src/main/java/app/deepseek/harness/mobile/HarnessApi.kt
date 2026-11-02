@@ -32,6 +32,9 @@ internal class HarnessApi(
         parseCommands(remoteValue("commands/list", JSONObject().put("agentId", sessionId)))
     fun goal(sessionId: String): GoalInfo? =
         parseGoal(remoteValue("goals/get", JSONObject().put("agentId", sessionId)))
+    fun goalAction(sessionId: String, goal: GoalInfo, action: String, objective: String? = null) {
+        remoteValue("goals/$action", goalActionArgs(sessionId, goal, action, objective))
+    }
     private val archivedSessionsByServer = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
     val archivedSessionIds: Set<String>
         get() = archivedSessionsByServer[baseUrl()].orEmpty()

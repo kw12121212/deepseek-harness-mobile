@@ -53,4 +53,44 @@ class GoalInfoTest {
         state.accept("a", old, parseGoal(JSONObject(full)))
         assertNull(state.goal)
     }
+    @Test fun actionRequestsCarryGoalRefAndEditObjective() {
+        val goal = parseGoal(JSONObject(full))!!
+        val seen = mutableListOf<String>()
+        val transport = object : HarnessTransport {
+            override fun rpc(envelope: JSONObject): JSONObject {
+                val method = envelope.getString("method")
+                seen.add(method)
+                val args = envelope.getJSONObject("payload").getJSONObject("args")
+                assertEquals("session-a", args.getString("agentId"))
+                val ref = args.getJSONObject("ref")
+                assertEquals("goal-1", ref.getString("id"))
+                assertEquals(3L, ref.getLong("revision"))
+                assertEquals(if (method == "goals/edit") setOf("agentId", "ref", "request") else setOf("agentId", "ref"), args.keys().asSequence().toSet())
+                if (method == "goals/edit") assertEquals("New objective", args.getJSONObject("request").getString("objective"))
+                return JSONObject().put("type", "server-response").put("rpcId", envelope.getString("rpcId"))
+                    .put("result", JSONObject().put("ok", true))
+            }
+            override fun openMux(listener: WebSocketListener): WebSocket = error("Unexpected stream")
+            override fun export(sessionId: String, includeDescendants: Boolean, sink: OutputStream) = error("Unexpected export")
+            override fun streamFailure(response: Response?, cause: Throwable): IOException = error("Unexpected failure")
+        }
+        val api = HarnessApi({ "server" }, transport = { transport })
+        listOf("edit", "pause", "resume", "clear").forEach { api.goalAction("session-a", goal, it, if (it == "edit") "New objective" else null) }
+        assertEquals(listOf("goals/edit", "goals/pause", "goals/resume", "goals/clear"), seen)
+    }
+
+    @Test fun actionsMatchPhase() {
+        assertEquals(listOf("edit", "pause", "clear"), availableGoalActions("active"))
+        assertEquals(listOf("edit", "resume", "clear"), availableGoalActions("paused"))
+        assertEquals(listOf("edit", "resume", "clear"), availableGoalActions("blocked"))
+        assertEquals(listOf("edit", "clear"), availableGoalActions("complete"))
+    }
+
+    @Test fun clearedGoalDisappearsAfterRefresh() {
+        val state = GoalState()
+        val initial = state.select("a")
+        state.accept("a", initial, parseGoal(JSONObject(full)))
+        state.accept("a", state.beginRefresh(), null)
+        assertNull(state.goal)
+    }
 }

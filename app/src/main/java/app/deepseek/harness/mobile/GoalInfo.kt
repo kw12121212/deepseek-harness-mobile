@@ -45,3 +45,17 @@ internal class GoalState {
         if (sessionId == session && generation == request) goal = value
     }
 }
+
+internal fun goalActionArgs(sessionId: String, goal: GoalInfo, action: String, objective: String? = null): JSONObject {
+    require(action in setOf("edit", "pause", "resume", "clear"))
+    require(action != "edit" || objective != null)
+    return JSONObject().put("agentId", sessionId)
+        .put("ref", JSONObject().put("id", goal.id).put("revision", goal.revision))
+        .apply { if (action == "edit") put("request", JSONObject().put("objective", objective)) }
+}
+
+internal fun availableGoalActions(phase: String): List<String> = when (phase) {
+    "active" -> listOf("edit", "pause", "clear")
+    "paused", "blocked" -> listOf("edit", "resume", "clear")
+    else -> listOf("edit", "clear")
+}

@@ -8,7 +8,9 @@ func TestGoalGetRPCIsNarrowlyAllowed(t *testing.T) {
 		allowed  bool
 	}{
 		{"goal/get", true}, {"goal/getAnything", false}, {"goal/get/", false},
-		{"goals/get", true}, {"goals/getAnything", false}, {"goal/edit", false}, {"goals/edit", false}, {"goal/*", false},
+		{"goals/get", true}, {"goals/getAnything", false}, {"goal/edit", false}, {"goal/*", false},
+		{"goals/clear", true}, {"goals/edit", true}, {"goals/pause", true}, {"goals/resume", true},
+		{"goals/clearAnything", false}, {"goals/edit/", false}, {"goals/pauses", false}, {"goals/resumed", false},
 	} {
 		t.Run(test.endpoint, func(t *testing.T) {
 			if allowedRPC[test.endpoint] != test.allowed {
