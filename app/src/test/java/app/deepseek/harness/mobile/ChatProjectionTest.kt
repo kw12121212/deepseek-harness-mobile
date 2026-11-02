@@ -8,6 +8,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatProjectionTest {
+    @Test fun preservesAttachmentOnlyUserMessage() {
+        val ref = JSONObject().put("attachmentId", "sha256:abc").put("mediaType", "image/png").put("bytes", 7)
+        val history = JSONArray().put(event(1, "user/message", JSONObject()
+            .put("source", JSONObject().put("kind", "user"))
+            .put("content", JSONArray().put(JSONObject().put("type", "image").put("attachment", ref)))))
+        val result = ChatProjection.fromHistory(history).single()
+        assertEquals("", result.text)
+        assertEquals("sha256:abc", JSONObject(result.attachments.single()).getJSONObject("attachment").getString("attachmentId"))
+    }
+
     @Test
     fun keepsHumanContextReasoningAndVisibleAssistantMessages() {
         val history = JSONArray()

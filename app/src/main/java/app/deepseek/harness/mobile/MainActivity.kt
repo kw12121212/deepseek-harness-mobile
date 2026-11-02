@@ -156,6 +156,10 @@ class MainActivity : ComponentActivity() {
     private var drawerOrderLastUpdated = true
     private val manuallyExpandedWorkspaceKeys = mutableSetOf<String>()
     private var currentSession: HarnessApi.Session? = null
+        set(value) {
+            if (field?.id != value?.id) clearAttachments()
+            field = value
+        }
     private var pendingOpenSessionId: String? = null
     private var currentModels: HarnessApi.Models? = null
     private var currentControls = HarnessApi.SessionControls()
@@ -904,6 +908,8 @@ class MainActivity : ComponentActivity() {
                 override fun afterTextChanged(s: Editable?) = Unit
             })
         }
+        attachmentStrip = AttachmentStripView(this@MainActivity, palette)
+        card.addView(attachmentStrip, LinearLayout.LayoutParams(MATCH, WRAP))
         card.addView(composer, LinearLayout.LayoutParams(MATCH, WRAP))
         val toolbar = LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -914,16 +920,10 @@ class MainActivity : ComponentActivity() {
             imageTintList = ColorStateList.valueOf(COLOR_TEXT)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             background = ripple(InsetDrawable(rounded(COLOR_CONTROL, 14f), dp(10)))
-            contentDescription = tr("命令", "Commands")
+            contentDescription = tr("添加附件", "Add attachment")
             isClickable = true
             isFocusable = true
-            setOnClickListener { anchor ->
-                if (commandPopup?.isShowing == true) {
-                    commandPopup?.dismiss()
-                } else {
-                    showCommands(anchor)
-                }
-            }
+            setOnClickListener { anchor -> if (composer.isEnabled) showAttachmentPicker(anchor) }
         }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginEnd = dp(4) })
         val leading = LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -958,7 +958,7 @@ class MainActivity : ComponentActivity() {
             contentDescription = tr("发送消息", "Send message")
             isClickable = true
             setOnClickListener {
-                when (composerAction(currentSession?.running == true, composer.text?.isNotBlank() == true)) {
+                when (composerAction(currentSession?.running == true, composer.text?.isNotBlank() == true || attachments.items.isNotEmpty() || attachments.pendingReads > 0)) {
                     ComposerAction.STOP -> cancelCurrent()
                     ComposerAction.SEND -> sendPrompt()
                 }
@@ -2814,6 +2814,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyServer(url: String) {
+        clearAttachments()
         clearQueueUi()
         connectionEpoch += 1
         refreshGeneration += 1
@@ -2847,6 +2848,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun clearServerState() {
+            clearAttachments()
             clearQueueUi()
             cancelAllStreamingAnimations()
             providerOnboardingDialog?.dismiss()
@@ -3313,7 +3315,7 @@ class MainActivity : ComponentActivity() {
         return MessageRenderPolicy.Row(
             key = message.key,
             fingerprint = "${message.role}:${message.text.hashCode()}:${message.title}:${message.detail?.hashCode()}:" +
-                "${message.pending}:${message.state}:${message.activityKind}:${message.assistantFooter}:" +
+                "${message.pending}:${message.state}:${message.activityKind}:${message.assistantFooter}:${message.attachments.hashCode()}:" +
                 "${feedback?.rating}:${feedback?.note}:$pendingFeedback",
         )
     }
@@ -3454,7 +3456,41 @@ class MainActivity : ComponentActivity() {
         }
         if (message.role == ChatMessage.Role.USER) bubble.maxWidth = dp(285)
         val width = if (message.role == ChatMessage.Role.USER) WRAP else MATCH
-        outer.addView(bubble, LinearLayout.LayoutParams(width, WRAP))
+        if (message.text.isNotBlank()) outer.addView(bubble, LinearLayout.LayoutParams(width, WRAP))
+        if (message.role == ChatMessage.Role.USER) message.attachments.forEach { block ->
+            val entry = JSONObject(block)
+            val ref = entry.getJSONObject("attachment")
+            if (entry.optString("type") == "image") {
+                val image = ImageView(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(dp(160), dp(160)).apply { topMargin = dp(4) }
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    contentDescription = tr("加载图片", "Loading image")
+                    setBackgroundColor(COLOR_CONTROL)
+                }
+                outer.addView(image)
+                val sessionId = currentSession?.id
+                val selectedApi = api
+                if (sessionId != null) attachmentExecutor.execute {
+                    try {
+                        val bytes = attachments.imageFor(ref.optString("attachmentId")) ?: selectedApi.readAttachment(sessionId, ref).bytes
+                        val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        runOnUiThread {
+                            if (currentSession?.id == sessionId && bitmap != null) {
+                                image.setImageBitmap(bitmap)
+                                image.contentDescription = tr("打开原图", "Open original image")
+                                image.setOnClickListener { showAttachmentPreview(bytes) }
+                            }
+                        }
+                    } catch (error: Exception) { Log.w("Attachments", "Unable to load conversation image", error); runOnUiThread { image.contentDescription = tr("图片加载失败", "Image failed to load") } }
+                }
+            } else {
+                outer.addView(TextView(this).apply {
+                    text = "📎 " + ref.optString("name", tr("文件", "File"))
+                    setTextColor(COLOR_TEXT); setPadding(dp(12), dp(12), dp(12), dp(12))
+                    background = rounded(COLOR_USER_BUBBLE, 12f)
+                })
+            }
+        }
         if (message.role == ChatMessage.Role.ASSISTANT) {
             if (message.pending) {
                 outer.addView(TextView(this).apply {
@@ -4319,6 +4355,174 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val attachments = AttachmentsState()
+    private lateinit var attachmentStrip: AttachmentStripView
+    private val attachmentExecutor = Executors.newCachedThreadPool()
+    private val attachmentReader = Executors.newSingleThreadExecutor()
+    private var pickerGeneration = 0L
+    private val attachmentTasks = mutableMapOf<Long, java.util.concurrent.Future<*>>()
+    private var attachmentGeneration = 0L
+    private var cameraUri: Uri? = null
+    private val imagePicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
+        if (pickerGeneration == attachmentGeneration) uris.forEach { readSelectedAttachment(it, true) }
+    }
+    private val filePicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (pickerGeneration == attachmentGeneration) uris.forEach { readSelectedAttachment(it, false) }
+    }
+    private val cameraPicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.TakePicture()) { success ->
+        val uri = cameraUri
+        cameraUri = null
+        if (success && uri != null && pickerGeneration == attachmentGeneration) readSelectedAttachment(uri, true)
+        else if (!success && uri != null) contentResolver.delete(uri, null, null)
+    }
+
+    private fun showAttachmentPicker(anchor: View) {
+        if (currentSession == null) { Toast.makeText(this, tr("请先选择会话", "Select a session first"), Toast.LENGTH_SHORT).show(); return }
+        pickerGeneration = attachmentGeneration
+        PopupMenu(this, anchor).apply {
+            menu.add(tr("拍照", "Take photo")).setOnMenuItemClickListener {
+                val values = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "DSH-${System.currentTimeMillis()}.jpg")
+                    put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                }
+                cameraUri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                cameraUri?.let { cameraPicker.launch(it) } ?: Toast.makeText(this@MainActivity, tr("无法打开相机", "Cannot open camera"), Toast.LENGTH_LONG).show()
+                true
+            }
+            menu.add(tr("相册", "Photos")).setOnMenuItemClickListener {
+                imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)); true
+            }
+            menu.add(tr("文件", "Files")).setOnMenuItemClickListener { filePicker.launch(arrayOf("*/*")); true }
+            show()
+        }
+    }
+
+    private fun clearAttachments() {
+        attachmentGeneration++
+        attachmentTasks.values.forEach { it.cancel(true) }
+        attachmentTasks.clear()
+        attachments.clear()
+        renderAttachments()
+    }
+
+    private fun renderAttachments() {
+        if (!::attachmentStrip.isInitialized) return
+        attachmentStrip.render(attachments.items.map { item ->
+            AttachmentStripItem(item.id, item.name, item.size, if (item.isImage) item.bytes else null,
+                when (item.status) {
+                    AttachmentsState.Status.READY -> AttachmentStripStatus.READY
+                    AttachmentsState.Status.UPLOADING -> AttachmentStripStatus.UPLOADING
+                    AttachmentsState.Status.FAILED -> AttachmentStripStatus.FAILED
+                })
+        }, { id -> if (composer.isEnabled) { attachmentTasks.remove(id)?.cancel(true); attachments.remove(id); renderAttachments() } },
+            { id -> if (composer.isEnabled && attachments.retry(id)) { renderAttachments(); uploadAttachment(id) } },
+            { id -> attachments.items.firstOrNull { it.id == id }?.let { showAttachmentPreview(it.bytes) } })
+        updateSendState()
+    }
+
+    private fun showAttachmentPreview(bytes: ByteArray) {
+        val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return
+        val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val image = ImageView(this).apply {
+            setImageBitmap(bitmap); scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = tr("原图，点击关闭", "Original image, tap to close")
+            setOnClickListener { dialog.dismiss() }
+        }
+        dialog.setContentView(image)
+        dialog.show()
+    }
+
+    private fun readSelectedAttachment(uri: Uri, image: Boolean) {
+        val session = currentSession ?: run { Toast.makeText(this, tr("请先选择会话", "Select a session first"), Toast.LENGTH_SHORT).show(); return }
+        val generation = attachmentGeneration
+        attachments.beginRead(); updateSendState()
+        attachmentReader.execute {
+            try {
+                var name = uri.lastPathSegment ?: "attachment"
+                var size = -1L
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        if (!cursor.isNull(0)) name = cursor.getString(0)
+                        if (!cursor.isNull(1)) size = cursor.getLong(1)
+                    }
+                }
+                val limit = (if (image) 50L else 32L) * 1024 * 1024
+                require(size <= limit) { if (image) "图片不能超过 50 MiB" else "文件过大（最大 32 MiB）" }
+                val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(65536)
+                    while (true) {
+                        val count = input.read(buffer); if (count < 0) break
+                        require(output.size().toLong() + count <= limit) { if (image) "图片不能超过 50 MiB" else "文件过大（最大 32 MiB）" }
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                } ?: throw IOException("Cannot read attachment")
+                val type = contentResolver.getType(uri) ?: "image/jpeg"
+                runOnUiThread {
+                    if (generation != attachmentGeneration || currentSession?.id != session.id) return@runOnUiThread
+                    attachments.endRead()
+                    try {
+                        if (image) attachments.addImage(name, type, bytes) else {
+                            val id = attachments.addFile(name, bytes)
+                            uploadAttachment(id)
+                        }
+                    } catch (e: IllegalArgumentException) { Toast.makeText(this, e.message, Toast.LENGTH_LONG).show() }
+                    renderAttachments()
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    if (generation != attachmentGeneration) return@runOnUiThread
+                    attachments.endRead(); renderAttachments()
+                    Toast.makeText(this, e.message ?: tr("无法读取附件", "Cannot read attachment"), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun uploadAttachment(id: Long) {
+        val item = attachments.items.firstOrNull { it.id == id } ?: return
+        val session = currentSession ?: return
+        val generation = attachmentGeneration
+        val selectedApi = api
+        attachmentTasks[id] = attachmentExecutor.submit {
+            try {
+                val result = selectedApi.uploadFile(session.id, item.bytes, item.name)
+                runOnUiThread {
+                    if (generation != attachmentGeneration) return@runOnUiThread
+                    attachmentTasks.remove(id); attachments.complete(id, result.receiptId); renderAttachments()
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    if (generation != attachmentGeneration) return@runOnUiThread
+                    attachmentTasks.remove(id); attachments.fail(id); renderAttachments()
+                    Toast.makeText(this, tr("上传失败，请重试", "Upload failed. Retry."), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun imagePromptContent(item: AttachmentsState.Item, selectedApi: HarnessApi): JSONObject {
+        var bytes = item.bytes
+        var type = item.mediaType ?: "image/jpeg"
+        if (bytes.size > 1572864 || type !in setOf("image/png", "image/jpeg", "image/webp", "image/gif")) {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Cannot decode image" }
+            val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 1 }
+            while (maxOf(bounds.outWidth, bounds.outHeight) / options.inSampleSize > 4096) options.inSampleSize *= 2
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: throw IOException("Cannot decode image")
+            val scale = minOf(1f, 2048f / maxOf(bitmap.width, bitmap.height))
+            val resized = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt().coerceAtLeast(1), (bitmap.height * scale).toInt().coerceAtLeast(1), true) else bitmap
+            val output = java.io.ByteArrayOutputStream()
+            check(resized.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, output))
+            bytes = output.toByteArray(); type = "image/jpeg"
+            if (resized !== bitmap) resized.recycle()
+            bitmap.recycle()
+        }
+        return selectedApi.imageContent(bytes, type, item.name)
+    }
+
     private val promptSubmission = HarnessPromptSubmission()
     private fun sendPrompt() {
         val session = currentSession ?: run {
@@ -4328,10 +4532,14 @@ class MainActivity : ComponentActivity() {
         val sentToServer = serverUrl
         if (session.origin == "subagent") return
         val text = composer.text.toString().trim()
-        if (text.isEmpty()) return
-        val submissionId = promptSubmission.begin(sentToServer.orEmpty(), session.id, text, promptMode)
+        if (!attachments.canSend(text)) {
+            val message = if (attachments.items.any { it.status == AttachmentsState.Status.FAILED }) tr("上传失败，请重试", "Upload failed. Retry.") else tr("附件正在上传或读取", "Attachments are still uploading or loading")
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            return
+        }
+        val draft = attachments.snapshot()
+        val submissionId = promptSubmission.begin(sentToServer.orEmpty(), session.id, text + draft.items.joinToString { ":${it.id}" }, promptMode)
         val submissionMode = promptMode
-        val content = JSONArray().put(JSONObject().put("type", "text").put("text", text))
         composer.setText("")
         knownAssistantKeysBeforePrompt = lastMessages
             .filter { it.role == ChatMessage.Role.ASSISTANT }
@@ -4342,10 +4550,18 @@ class MainActivity : ComponentActivity() {
         hideKeyboard()
         worker.execute {
             try {
+                val content = draft.contentBlocks(text) { imagePromptContent(it, api) }
+                require(content.toString().toByteArray(Charsets.UTF_8).size < 7_900_000) { "附件过大，请减少图片数量" }
                 api.prompt(session.id, content, submissionMode, submissionId)
                 promptSubmission.accepted(submissionId)
                 mainHandler.post {
                     if (serverUrl != sentToServer || currentSession?.id != session.id) return@post
+                    for (i in 0 until content.length()) {
+                        val block = content.getJSONObject(i)
+                        if (block.optString("type") == "image") attachments.rememberImage(java.util.Base64.getDecoder().decode(block.getString("data")))
+                    }
+                    draft.items.forEach { attachments.remove(it.id) }
+                    renderAttachments()
                     setComposerEnabled(true)
                     val startedSession = currentSession?.copy(running = true, blank = false)
                     currentSession = startedSession
@@ -4373,7 +4589,7 @@ class MainActivity : ComponentActivity() {
                     setComposerEnabled(true)
                     composer.setText(text)
                     refresh(showSpinner = false)
-                    Toast.makeText(this, tr("发送结果尚未确认，请先检查会话；草稿已保留。", "Send outcome is unconfirmed. Check the conversation before retrying; your draft is preserved."), Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, error.message ?: tr("发送结果尚未确认，请先检查会话；草稿已保留。", "Send outcome is unconfirmed. Check the conversation before retrying; your draft is preserved."), Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -4387,11 +4603,11 @@ class MainActivity : ComponentActivity() {
     private fun updateSendState() {
         if (!::sendButton.isInitialized || !::composer.isInitialized) return
         val running = currentSession?.running == true
-        val hasDraft = composer.text?.isNotBlank() == true
+        val hasDraft = composer.text?.isNotBlank() == true || attachments.items.isNotEmpty() || attachments.pendingReads > 0
         val action = composerAction(running, hasDraft)
         sendButton.setImageResource(if (action == ComposerAction.STOP) R.drawable.ic_stop_square else R.drawable.ic_send_harness)
         sendButton.contentDescription = if (action == ComposerAction.STOP) tr("停止当前任务", "Stop current task") else tr("发送消息", "Send message")
-        val enabled = running || (composer.isEnabled && hasDraft)
+        val enabled = if (action == ComposerAction.STOP) running else composer.isEnabled && attachments.canSend(composer.text.toString())
         sendButton.isEnabled = enabled
         applySendButtonVisual(enabled)
     }
@@ -5952,6 +6168,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        clearAttachments()
+        attachmentExecutor.shutdownNow()
+        attachmentReader.shutdownNow()
         clearQueueUi()
         api.closeMux(); connectionWork.replace(unconfiguredApi())
         refreshGeneration += 1

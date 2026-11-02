@@ -15,6 +15,7 @@ internal data class ChatMessage(
     val state: State = State.OK,
     val activityKind: ActivityKind? = null,
     val assistantFooter: AssistantFooter? = null,
+    val attachments: List<String> = emptyList(),
 ) {
     enum class Role { USER, ASSISTANT, REASONING, TOOL, ACTIVITY, NOTICE }
     enum class State { RUNNING, OK, ERROR, STOPPED }
@@ -81,7 +82,11 @@ internal object ChatProjection {
                     val source = data.optJSONObject("source")
                     val text = visibleText(data.optJSONArray("content"))
                     if (source?.optString("kind") == "user") {
-                        if (text.isNotBlank()) messages += ChatMessage("event-$seq", ChatMessage.Role.USER, text, time)
+                        val blocks = data.optJSONArray("content")?.objects().orEmpty()
+                            .filter { it.optString("type") in setOf("image", "file") && it.optJSONObject("attachment") != null }
+                            .map { it.toString() }
+                        val userText = if (blocks.isEmpty()) text else visibleText(JSONArray(data.optJSONArray("content")!!.objects().filterNot { it.optJSONObject("attachment") != null && it.optString("type") in setOf("image", "file") }))
+                        if (userText.isNotBlank() || blocks.isNotEmpty()) messages += ChatMessage("event-$seq", ChatMessage.Role.USER, userText, time, attachments = blocks)
                     } else if (source?.optString("kind") == "plugin" && source.optString("plugin") == "compact") {
                         val id = source.optString("compactionId")
                         val evidence = compactions[id] ?: CompactionEvidence(id = id)
