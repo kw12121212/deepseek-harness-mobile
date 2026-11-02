@@ -16,7 +16,8 @@
 
 
 
-| OI-014 | open | 队列条里删除排队消息失败，Toast 显示「Delete failed: this message may already have started sending.」——Host 返回 queue-item-not-found，但条目仍显示在队列条里；编辑/插话未验证。 | 查 itemId 与 Host inbox 的匹配（next-turn/next-step 的 id），以及 remove 走的 RPC 是否与 edit/steer 一致；复现步骤见验收记录。 | [队列条验收](../qa/q5b-queue/validation.md) |
+
+| OI-015 | open | bridge 拒绝 RPC 时只回 HTTP 400，响应体里的错误码没有传到客户端，排查时只能看到 `Private server HTTP 400`。 | 让客户端读取 4xx 响应体的 `error` 字段，或让 bridge 在回包中带上原因；同时把日志里的 code 打全。 | [队列条验收](../qa/q5b-queue/validation.md) |
 
 ## 已解决
 
@@ -26,3 +27,4 @@
 | OI-010 | resolved | 会话地址未解析时长按菜单静默无反应：新连接后大多数会话处于该状态，用户会以为长按失效。 | 已由 Q12 修复：未解析先异步解析并提示，成功后弹菜单；subagent 仍不给菜单。 | [Q12 开发记录](2026-11-01-10.md)、[真机验收](../qa/session-menu-resolution/validation.md) |
 | OI-012 | resolved | 流式输出时长按抽屉行弹不出菜单：逐字渲染把主线程排满，且抽屉每 ~250ms 重建行、换掉按住的那版 View。已由 `7e28669` 改成 Choreographer 单帧调度 + 稳定前缀缓存，并加触摸闸门在按住期间推迟重建、抬手后补一次；`f4ecfd6` 把追平预算调到 3.5s 保住逐字观感。 | [流式长按验收](../qa/streaming-long-press/validation.md)、[Issue #5](https://github.com/Venompool888/deepseek-harness-mobile/issues/5) | 170 项单测全绿；真机空闲 / running / 流式探测三种场景长按都能弹出菜单 |
 | OI-013 | resolved | 运行中手机只能停止、无法排队：按钮只认 running，有草稿也照旧取消当前任务。 | 已由 e50bd8b 修复：composerAction(running, hasDraft) 决定图标/描述/点击，有草稿时发送走 queue 模式，长按按钮仍可停止。 | [队列条验收](../qa/q5b-queue/validation.md) | 真机：空草稿=停止图标、打字=发送图标、发送后本轮继续且出现「1 queued messages」；4 项单测 |
+| OI-014 | resolved | 队列条删除排队消息失败，Toast 显示“可能已开始发送”。真实错误是 bridge 返回 HTTP 400：本机 3090 跑的 bridge 还是加入 `session/updateQueue` 白名单之前的旧二进制，该 RPC 被桥直接拒绝。 | 用当前源码重建 bridge 并重启后，真机走通“排队 → 删除 → 队列条消失”；客户端在收到 `queue-item-not-found` 时会丢弃旧 follow 重开快照，其他失败不再套用“已开始发送”的措辞。 | [队列条验收](../qa/q5b-queue/validation.md) | 真机删除成功、队列条消失；207 项单测全绿 |

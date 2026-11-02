@@ -82,3 +82,12 @@ For an already authenticated Desktop Host, use `dsh-bridge serve --state DIR --d
 A fixed Cookie does not refresh itself. If Desktop invalidates it, requests fail and keep presenting that Cookie until the operator replaces it and restarts dshbridge. There is no anonymous fallback. Keep the native dsh listener on loopback and restart only dshbridge when changing its upstream authentication.
 
 The interaction allowlist includes `$events/result`, `userQuestions/answer`, `$events` and `userQuestions/attachWait` alongside the existing session streams. It does not expose native administration or a pending-events discovery endpoint.
+
+## 改动允许列表后必须重新部署
+
+`internal/gateway/allowed.go` 决定 bridge 放行哪些 RPC。只要这张表变了（新增或移除端点），
+**所有正在运行的 bridge 进程都要用新源码重新构建并重启**，否则客户端会看到 `Private server HTTP 400`，
+而看上去像是客户端功能坏了。
+
+排查顺序：先 `curl` 或日志确认请求确实到了 bridge、再确认 bridge 二进制的构建时间晚于允许列表改动、
+最后才怀疑客户端。2026-11-02 的队列删除失败就是旧二进制造成的（见 [队列条验收](../docs/qa/q5b-queue/validation.md)）。

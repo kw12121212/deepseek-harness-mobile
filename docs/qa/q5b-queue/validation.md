@@ -48,3 +48,20 @@
 截图：`queued-from-phone.png`、`delete-toast2.png`、`edit-dialog.png`。
 
 复现：会话运行中打字发送 → 队列条出现一条 → 打开「⋯」→ 删除 → 观察 Toast。
+
+## 2026-11-02 20:0x 删除闭环：根因是旧 bridge 二进制
+
+排查结论：删除失败时客户端只拿到 `IOException: Private server HTTP 400`（bridge 没把响应体的错误码回传），
+而根因是**本机 3090 上跑的 bridge 是白名单加入 `session/updateQueue` 之前编译的旧二进制**——该 RPC 直接被桥拒绝，
+所以既不是 `queue-item-not-found`，也不是 id 取错。
+
+处置：
+
+1. 用当前源码重建 bridge 并重启（`go build ./cmd/dsh-bridge`，同 state / cookie 参数）；
+2. 重新装当前 `.qa` 包；
+3. 真机复测：运行中发送排队消息 → 队列条出现「1 queued messages」→ 展开 → 「⋯」→ Delete queued message → **队列条消失，无错误 Toast**。
+
+截图：`delete-fixed-queued.png`（删除前）、`delete-fixed-after.png`（删除后）。
+
+**部署注意**：只要 `bridge/internal/gateway/allowed.go` 变了（新增/移除 RPC），本机与远端部署的 bridge 都必须重建重启；
+否则客户端会表现成"功能做完了但一点就报错"。这一条已写进 [bridge 说明](../../../bridge/README.md)。
