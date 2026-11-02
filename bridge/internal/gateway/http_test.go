@@ -80,6 +80,127 @@ func TestRawRPCAndUnknownMethod(t *testing.T) {
 		t.Fatal("allowed traversal", rr.Code)
 	}
 }
+
+func TestRPCBodyLimits(t *testing.T) {
+	// Exercise exact limits and the first byte over, including reordered and duplicate method fields.
+	for _, tc := range []struct {
+		name   string
+		fields string
+		suffix string
+		size   int
+		status int
+	}{
+		{"default_at_limit", `"method":"session/prompt",`, "", 8 << 20, http.StatusOK},
+		{"default_over_limit", `"method":"session/prompt",`, "", (8 << 20) + 1, http.StatusRequestEntityTooLarge},
+		{"attachment_over_limit", `"method":"session/attachment",`, "", (8 << 20) + 1, http.StatusRequestEntityTooLarge},
+		{"upload_between_limits", `"method":"fileUploads/upload",`, "", 9 << 20, http.StatusOK},
+		{"upload_at_limit", `"method":"fileUploads/upload",`, "", 32 << 20, http.StatusOK},
+		{"upload_over_limit", `"method":"fileUploads/upload",`, "", (32 << 20) + 1, http.StatusRequestEntityTooLarge},
+		{"unknown_at_limit", `"method":"unknown/method",`, "", 8 << 20, http.StatusBadRequest},
+		{"unknown_over_limit", `"method":"unknown/method",`, "", (8 << 20) + 1, http.StatusRequestEntityTooLarge},
+		{"upload_method_last", "", `,"method":"fileUploads/upload"`, 9 << 20, http.StatusOK},
+		{"nested_upload_method", `"method":"session/prompt","extra":{"method":"fileUploads/upload"},`, "", (8 << 20) + 1, http.StatusRequestEntityTooLarge},
+		{"overwritten_upload_method", `"method":"fileUploads/upload",`, `,"method":"session/prompt"`, 9 << 20, http.StatusRequestEntityTooLarge},
+		{"escaped_upload_method", `"m\u0065thod":"fileUploads\/upload",`, "", 9 << 20, http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prefix := `{"type":"client-request","rpcId":"r",` + tc.fields + `"payload":{"args":{"content":"`
+			suffix := `"}}` + tc.suffix + `}`
+			body := prefix + strings.Repeat("A", tc.size-len(prefix)-len(suffix)) + suffix
+			var hits atomic.Int32
+			g, cfg, _, token := fixture(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				hits.Add(1)
+				forwarded, err := io.ReadAll(r.Body)
+				if err != nil || !bytes.Equal(forwarded, []byte(body)) {
+					t.Error("RPC body changed during method detection", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				io.WriteString(w, `{"accepted":true}`)
+			}))
+			r := httptest.NewRequest("POST", cfg.Routes.RPC, strings.NewReader(body))
+			r.ContentLength = -1 // Limits must also apply when the body length is unknown.
+			r.Header.Set("Authorization", "Bearer "+token)
+			rr := httptest.NewRecorder()
+			g.ServeHTTP(rr, r)
+			if rr.Code != tc.status {
+				t.Fatalf("status = %d, want %d; response: %s", rr.Code, tc.status, rr.Body.String())
+			}
+			if tc.status == http.StatusOK {
+				if hits.Load() != 1 || rr.Body.String() != `{"accepted":true}` {
+					t.Fatalf("upload not forwarded: hits=%d, response=%s", hits.Load(), rr.Body.String())
+				}
+			} else if hits.Load() != 0 {
+				t.Fatal("rejected RPC reached upstream")
+			}
+			if tc.status == http.StatusRequestEntityTooLarge && rr.Body.String() != "{\"error\":{\"code\":\"request-too-large\"}}\n" {
+				t.Fatalf("changed size error: %s", rr.Body.String())
+			}
+			if len(g.requests) != 0 {
+				t.Fatal("request counter was not released")
+			}
+		})
+	}
+}
+
+func TestRPCBodyReadBounded(t *testing.T) {
+	padding := strings.Repeat("A", 34<<20)
+	for _, tc := range []struct {
+		name    string
+		prefix  string
+		maxRead int64
+	}{
+		{"default_method", `{"method":"session/prompt","payload":"`, (8 << 20) + 1},
+		{"unknown_method", `{"method":"unknown/method","payload":"`, (8 << 20) + 1},
+		{"upload_method", `{"method":"fileUploads/upload","payload":"`, (32 << 20) + 1},
+		{"missing_method", `{"payload":"`, 32 << 20},
+		{"malformed_json", `!`, (8 << 20) + 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const available = 40 << 20
+			body := &io.LimitedReader{R: io.MultiReader(strings.NewReader(tc.prefix), strings.NewReader(padding)), N: available}
+			g, cfg, _, token := fixture(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Error("oversized request reached upstream")
+			}))
+			r := httptest.NewRequest("POST", cfg.Routes.RPC, body)
+			r.Header.Set("Authorization", "Bearer "+token)
+			rr := httptest.NewRecorder()
+			g.ServeHTTP(rr, r)
+			if rr.Code != http.StatusRequestEntityTooLarge || rr.Body.String() != "{\"error\":{\"code\":\"request-too-large\"}}\n" {
+				t.Fatalf("status=%d, response=%s", rr.Code, rr.Body.String())
+			}
+			if consumed := available - body.N; consumed > tc.maxRead {
+				t.Fatalf("read %d bytes, limit %d", consumed, tc.maxRead)
+			}
+		})
+	}
+}
+
+type rpcReadErrorBody struct {
+	body string
+}
+
+func (r *rpcReadErrorBody) Read(p []byte) (int, error) {
+	if r.body == "" {
+		return 0, io.EOF
+	}
+	n := copy(p, r.body)
+	r.body = r.body[n:]
+	return n, io.ErrUnexpectedEOF
+}
+
+func TestRPCBodyDiscoveryPreservesReadError(t *testing.T) {
+	g, cfg, _, token := fixture(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("request with a body read error reached upstream")
+	}))
+	body := &rpcReadErrorBody{body: `{"type":"client-request","rpcId":"r","method":"session/list","payload":{"args":{}}}`}
+	r := httptest.NewRequest("POST", cfg.Routes.RPC, body)
+	r.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	g.ServeHTTP(rr, r)
+	if rr.Code != http.StatusRequestEntityTooLarge || rr.Body.String() != "{\"error\":{\"code\":\"request-too-large\"}}\n" {
+		t.Fatalf("status=%d, response=%s", rr.Code, rr.Body.String())
+	}
+}
 func TestPairAndUnsafePaths(t *testing.T) {
 	g, cfg, store, _ := fixture(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("unexpected upstream") }))
 	code, _ := store.NewPairing(time.Now())

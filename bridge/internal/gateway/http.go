@@ -4,6 +4,7 @@ import (
 	"app.deepseek.harness/bridge/internal/auth"
 	"app.deepseek.harness/bridge/internal/config"
 	"app.deepseek.harness/bridge/internal/upstream"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -55,6 +56,68 @@ func decode(w http.ResponseWriter, r *http.Request, max int64, out any) error {
 	}
 	return nil
 }
+
+const (
+	defaultRPCBodyLimit = 8 << 20
+	uploadRPCBodyLimit  = 32 << 20
+)
+
+func rpcBodyLimit(method string) int64 {
+	if method == "fileUploads/upload" {
+		return uploadRPCBodyLimit
+	}
+	return defaultRPCBodyLimit
+}
+
+func rpcMethod(d *json.Decoder) string {
+	if token, err := d.Token(); err != nil || token != json.Delim('{') {
+		return ""
+	}
+	for d.More() {
+		key, err := d.Token()
+		if err != nil {
+			return ""
+		}
+		if name, ok := key.(string); ok && strings.EqualFold(name, "method") {
+			var method string
+			if d.Decode(&method) != nil {
+				return ""
+			}
+			return method
+		}
+		if d.Decode(new(json.RawMessage)) != nil {
+			return ""
+		}
+	}
+	return ""
+}
+
+type rpcBodyReader struct {
+	io.Reader
+	err error
+}
+
+func (r *rpcBodyReader) Read(p []byte) (int, error) {
+	if r.err != nil {
+		return 0, r.err
+	}
+	n, err := r.Reader.Read(p)
+	r.err = err
+	return n, err
+}
+
+func readRPCBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+	var prefix bytes.Buffer
+	// Keep discovery read errors visible when replaying the consumed prefix.
+	source := &rpcBodyReader{Reader: r.Body}
+	// Bound discovery even when method follows a large payload or is missing.
+	d := json.NewDecoder(io.TeeReader(io.LimitReader(source, uploadRPCBodyLimit), &prefix))
+	limit := rpcBodyLimit(rpcMethod(d))
+	// Replay decoder read-ahead as well, so the limit covers the original wire bytes.
+	body := io.NopCloser(io.MultiReader(&prefix, source))
+	return io.ReadAll(http.MaxBytesReader(w, body, limit))
+}
+
 func (g *Gateway) pairAllowed(peer string) bool {
 	host, _, _ := net.SplitHostPort(peer)
 	g.mu.Lock()
@@ -160,7 +223,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.mu.Unlock()
 	}()
 	if path == g.cfg.Routes.RPC {
-		raw, e := io.ReadAll(http.MaxBytesReader(w, r.Body, 8<<20))
+		raw, e := readRPCBody(w, r)
 		if e != nil {
 			failure(w, 413, "request-too-large")
 			return
@@ -173,7 +236,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Args map[string]json.RawMessage `json:"args"`
 			} `json:"payload"`
 		}
-		if json.Unmarshal(raw, &req) != nil || req.Type != "client-request" || req.RPCID == "" || len(req.RPCID) > 256 || !allowedRPC[req.Method] || req.Payload.Args == nil {
+		e = json.Unmarshal(raw, &req)
+		// A later duplicate method field must not borrow the upload allowance.
+		if int64(len(raw)) > rpcBodyLimit(req.Method) {
+			failure(w, 413, "request-too-large")
+			return
+		}
+		if e != nil || req.Type != "client-request" || req.RPCID == "" || len(req.RPCID) > 256 || !allowedRPC[req.Method] || req.Payload.Args == nil {
 			failure(w, 400, "invalid-request")
 			return
 		}
