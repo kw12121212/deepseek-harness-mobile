@@ -21,19 +21,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.SystemClock
 import android.text.Editable
 import android.text.InputType
-import android.text.Spannable
-import android.text.SpannableStringBuilder
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
-import android.text.style.BackgroundColorSpan
-import android.text.style.ForegroundColorSpan
-import android.text.style.RelativeSizeSpan
-import android.text.style.StyleSpan
-import android.text.style.TypefaceSpan
 import android.util.Log
 import android.util.TypedValue
+import android.view.Choreographer
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -142,6 +137,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var drawerToolbarHost: FrameLayout
     private lateinit var pendingAttentionButton: android.widget.Button
     private lateinit var sessionList: LinearLayout
+    private val drawerRenderGate = DrawerRenderGate()
     private var commandPopup: PopupWindow? = null
 
     private var sessions = emptyList<HarnessApi.Session>()
@@ -195,8 +191,46 @@ class MainActivity : ComponentActivity() {
     private var drawerSwipeStartY = 0f
     @Volatile private var streamGeneration = 0
     private val streamingRendered = mutableMapOf<String, String>()
-    private val streamingAnimations = mutableMapOf<String, Runnable>()
+    private val streamingMarkdownCaches = mutableMapOf<String, StreamingMarkdownCache>()
+    private val streamingAnimations = mutableMapOf<String, StreamingAnimationState>()
     private val locallyAnimatedMessages = mutableSetOf<String>()
+    private var choreographerCallbackPosted = false
+
+    private val streamingFrameCallback = Choreographer.FrameCallback { frameTimeNanos ->
+        choreographerCallbackPosted = false
+        onStreamingFrame(frameTimeNanos)
+    }
+
+    private fun scheduleNextStreamingFrame(delayMs: Long = 0L) {
+        if (streamingAnimations.isEmpty()) return
+        if (choreographerCallbackPosted) {
+            if (delayMs <= 0L) {
+                Choreographer.getInstance().removeFrameCallback(streamingFrameCallback)
+                choreographerCallbackPosted = false
+            } else {
+                return
+            }
+        }
+        choreographerCallbackPosted = true
+        if (delayMs <= 0L) {
+            Choreographer.getInstance().postFrameCallback(streamingFrameCallback)
+        } else {
+            Choreographer.getInstance().postFrameCallbackDelayed(streamingFrameCallback, delayMs)
+        }
+    }
+
+    private fun cancelAllStreamingAnimations() {
+        if (choreographerCallbackPosted) {
+            Choreographer.getInstance().removeFrameCallback(streamingFrameCallback)
+            choreographerCallbackPosted = false
+        }
+        streamingAnimations.clear()
+        streamingRendered.clear()
+        streamingMarkdownCaches.clear()
+        locallyAnimatedMessages.clear()
+        knownAssistantKeysBeforePrompt = emptySet()
+        animateNextAssistant = false
+    }
     private var knownAssistantKeysBeforePrompt = emptySet<String>()
     private var animateNextAssistant = false
     private var lastMessages = emptyList<ChatMessage>()
@@ -1499,7 +1533,20 @@ class MainActivity : ComponentActivity() {
                 bottomMargin = dp(4)
             })
             renderDrawerToolbar()
-            sessionList = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
+            sessionList = object : LinearLayout(this@MainActivity) {
+                override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) drawerRenderGate.beginTouch()
+                    try {
+                        return super.dispatchTouchEvent(event)
+                    } finally {
+                        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                            if (drawerRenderGate.endTouch()) post {
+                                if (drawerOverlay.visibility == View.VISIBLE) renderSessionList()
+                            }
+                        }
+                    }
+                }
+            }.apply { orientation = LinearLayout.VERTICAL }
             addView(ScrollView(this@MainActivity).apply {
                 isFillViewport = true
                 addView(sessionList, ViewGroup.LayoutParams(MATCH, WRAP))
@@ -2451,6 +2498,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun clearServerState() {
+            cancelAllStreamingAnimations()
             providerOnboardingDialog?.dismiss()
             providerOnboardingDialog = null
             providerOnboardingCheckRunning = false
@@ -2657,10 +2705,7 @@ class MainActivity : ComponentActivity() {
                         feedbackLoadingSessionId = null
                         messageFeedback.clear()
                         feedbackPending.clear()
-                        streamingAnimations.values.forEach(mainHandler::removeCallbacks)
-                        streamingAnimations.clear()
-                        streamingRendered.clear()
-                        locallyAnimatedMessages.clear()
+                        cancelAllStreamingAnimations()
                         lastRenderedRows = emptyList()
                         lastRenderedRunning = false
                     }
@@ -2730,6 +2775,7 @@ class MainActivity : ComponentActivity() {
         requestRunning = false
         refreshQueued = false
         refreshQueuedFull = false
+        cancelAllStreamingAnimations()
         api.watchSession(session?.id)
         currentSession = session
         renderComposerSeat()
@@ -2860,6 +2906,16 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val currentKeys = messages.mapTo(mutableSetOf()) { it.key }
+        streamingAnimations.keys.retainAll(currentKeys)
+        streamingRendered.keys.retainAll(currentKeys)
+        streamingMarkdownCaches.keys.retainAll(currentKeys)
+        locallyAnimatedMessages.retainAll(currentKeys)
+        if (streamingAnimations.isEmpty() && choreographerCallbackPosted) {
+            Choreographer.getInstance().removeFrameCallback(streamingFrameCallback)
+            choreographerCallbackPosted = false
+        }
+
         val expectedChildren = lastRenderedRows.size + if (lastRenderedRunning) 1 else 0
         val planned = if (messageContainer.childCount == expectedChildren) {
             MessageRenderPolicy.plan(lastRenderedRows, rows)
@@ -2873,9 +2929,6 @@ class MainActivity : ComponentActivity() {
         }
         when (planned) {
             MessageRenderPolicy.Plan.REBUILD -> {
-                streamingAnimations.values.forEach(mainHandler::removeCallbacks)
-                streamingAnimations.clear()
-                streamingRendered.keys.retainAll(messages.mapTo(mutableSetOf()) { it.key })
                 messageContainer.removeAllViews()
                 messages.forEach { messageContainer.addView(messageBubble(it)) }
             }
@@ -2884,7 +2937,6 @@ class MainActivity : ComponentActivity() {
             }
             MessageRenderPolicy.Plan.REPLACE_LAST -> {
                 val index = messages.lastIndex
-                streamingAnimations.remove(messages[index].key)?.let(mainHandler::removeCallbacks)
                 messageContainer.removeViewAt(index)
                 messageContainer.addView(messageBubble(messages[index]), index)
             }
@@ -2925,7 +2977,15 @@ class MainActivity : ComponentActivity() {
      * Message rows are rebuilt from fast history snapshots. Waiting until the next pre-draw keeps
      * fullScroll from using the previous child height and briefly leaving the live status offscreen.
      */
-    private fun restoreMessageScrollAfterLayout(followBottom: Boolean, previousScrollY: Int) {
+    private fun restoreMessageScrollAfterLayout(
+        followBottom: Boolean,
+        previousScrollY: Int,
+    ) {
+        registerMessageScrollRestore(followBottom, previousScrollY)
+        messageScroll.requestLayout()
+    }
+
+    private fun registerMessageScrollRestore(followBottom: Boolean, previousScrollY: Int) {
         pendingMessageScrollRestore?.let { previous ->
             if (messageScroll.viewTreeObserver.isAlive) {
                 messageScroll.viewTreeObserver.removeOnPreDrawListener(previous)
@@ -2956,7 +3016,6 @@ class MainActivity : ComponentActivity() {
         }
         pendingMessageScrollRestore = listener
         messageScroll.viewTreeObserver.addOnPreDrawListener(listener)
-        messageScroll.requestLayout()
     }
 
     private fun buildTurnStatus(): View = LinearLayout(this).apply {
@@ -3002,6 +3061,12 @@ class MainActivity : ComponentActivity() {
         }
         val shouldAnimate = message.role == ChatMessage.Role.ASSISTANT &&
             (message.pending || message.key in locallyAnimatedMessages)
+        if (!shouldAnimate) {
+            streamingAnimations.remove(message.key)
+            streamingRendered.remove(message.key)
+            streamingMarkdownCaches.remove(message.key)
+            locallyAnimatedMessages.remove(message.key)
+        }
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = if (message.role == ChatMessage.Role.USER) Gravity.END else Gravity.START
@@ -3295,6 +3360,7 @@ class MainActivity : ComponentActivity() {
                     feedbackLoadingSessionId = null
                     messageFeedback.clear()
                     feedbackPending.clear()
+                    cancelAllStreamingAnimations()
                     currentSession = HarnessApi.Session(id, session.title, session.cwd, session.agentPreset, System.currentTimeMillis(), false, false)
                     closeDrawer()
                     refresh(true)
@@ -3405,103 +3471,176 @@ class MainActivity : ComponentActivity() {
 
     private fun animateStreamingText(view: TextView, message: ChatMessage) {
         val target = message.text
-        val previous = streamingRendered[message.key].orEmpty()
-        var shown = if (target.startsWith(previous)) previous else ""
-        if (shown.isEmpty() && target.codePointCount(0, target.length) > MAX_STREAM_BACKLOG) {
-            val prefixPoints = target.codePointCount(0, target.length) - MAX_STREAM_BACKLOG
-            shown = target.substring(0, target.offsetByCodePoints(0, prefixPoints))
-        }
-        view.text = styledMessage(shown)
-        if (shown == target) return
+        val existing = streamingAnimations[message.key]
+        val nowMs = SystemClock.uptimeMillis()
 
-        val animation = object : Runnable {
-            override fun run() {
-                if (shown.length >= target.length) {
-                    view.text = styledMessage(target)
-                    streamingRendered[message.key] = target
-                    streamingAnimations.remove(message.key)
-                    if (!message.pending) locallyAnimatedMessages.remove(message.key)
-                    return
+        if (existing != null) {
+            val samePrefix = target.startsWith(existing.target)
+            if (samePrefix) {
+                existing.view = view
+                existing.message = message
+                val appended = target.length > existing.target.length
+                val previouslyCaughtUp = existing.shownOffset >= existing.target.length
+
+                if (appended) {
+                    existing.target = target
+                    if (previouslyCaughtUp) {
+                        existing.burstDeadlineMs = nowMs + StreamingTextPolicy.MAX_CATCH_UP_MS
+                        existing.lastTextUpdateMs = nowMs
+                        existing.fadeDeadlineMs = 0L
+                    }
                 }
-                val next = shown.length + Character.charCount(Character.codePointAt(target, shown.length))
-                shown = target.substring(0, next)
-                streamingRendered[message.key] = shown
-                val followBottom = shouldFollowMessageBottom()
-                val previousScrollY = messageScroll.scrollY
-                view.text = styledStreamingMessage(shown)
-                if (followBottom) restoreMessageScrollAfterLayout(true, previousScrollY)
-                mainHandler.postDelayed(this, if (shown.length < target.length) STREAM_CHARACTER_MS else STREAM_FADE_MS)
+
+                existing.markdownCache.bindTo(
+                    view = view,
+                    target = target,
+                    shownOffset = existing.shownOffset,
+                    applyAlpha = existing.shownOffset < target.length || (existing.fadeDeadlineMs > 0L && nowMs < existing.fadeDeadlineMs),
+                )
+                scheduleNextStreamingFrame(0L)
+                return
+            } else {
+                streamingAnimations.remove(message.key)
             }
         }
-        streamingAnimations[message.key] = animation
-        mainHandler.post(animation)
+
+        val previous = existing?.let { it.target.substring(0, it.shownOffset) }
+            ?: streamingRendered[message.key].orEmpty()
+        val initialOffset = StreamingTextPolicy.initialOffset(target, previous)
+        val cache = streamingMarkdownCaches[message.key]?.takeIf { target.startsWith(previous) }
+            ?: StreamingMarkdownCache(COLOR_MUTED, COLOR_INLINE_CODE, COLOR_TEXT)
+        streamingMarkdownCaches[message.key] = cache
+
+        if (initialOffset >= target.length) {
+            cache.bindTo(view, target, initialOffset, applyAlpha = false)
+            streamingRendered[message.key] = target
+            streamingAnimations.remove(message.key)
+            if (!message.pending) {
+                locallyAnimatedMessages.remove(message.key)
+            }
+            if (streamingAnimations.isEmpty() && choreographerCallbackPosted) {
+                Choreographer.getInstance().removeFrameCallback(streamingFrameCallback)
+                choreographerCallbackPosted = false
+            }
+            return
+        }
+
+        val shown = target.substring(0, initialOffset)
+        streamingRendered[message.key] = shown
+
+        cache.bindTo(
+            view = view,
+            target = target,
+            shownOffset = initialOffset,
+            applyAlpha = false,
+        )
+
+        val state = StreamingAnimationState(
+            key = message.key,
+            view = view,
+            message = message,
+            target = target,
+            shownOffset = initialOffset,
+            lastTextUpdateMs = nowMs,
+            burstDeadlineMs = nowMs + StreamingTextPolicy.MAX_CATCH_UP_MS,
+            fadeDeadlineMs = 0L,
+            markdownCache = cache,
+        )
+        streamingAnimations[message.key] = state
+        scheduleNextStreamingFrame(StreamingTextPolicy.STREAM_CHARACTER_MS)
     }
 
-    private fun styledStreamingMessage(source: String): CharSequence {
-        val text = SpannableStringBuilder(styledMessage(source))
-        if (text.isNotEmpty()) {
-            val newestStart = text.length - Character.charCount(Character.codePointBefore(text, text.length))
-            text.setSpan(
-                ForegroundColorSpan(
-                    Color.argb(
-                        STREAM_NEWEST_ALPHA,
-                        Color.red(COLOR_TEXT),
-                        Color.green(COLOR_TEXT),
-                        Color.blue(COLOR_TEXT),
-                    ),
-                ),
-                newestStart,
-                text.length,
-                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-            )
+    private fun onStreamingFrame(frameTimeNanos: Long) {
+        if (isDestroyed || isFinishing) {
+            cancelAllStreamingAnimations()
+            return
         }
-        return text
+        if (paused) return
+        if (streamingAnimations.isEmpty()) return
+
+        val frameMs = frameTimeNanos / 1_000_000L
+        val entries = streamingAnimations.values.toList()
+        var followBottomNeeded = false
+        val previousScrollY = messageScroll.scrollY
+
+        for (state in entries) {
+            if (streamingAnimations[state.key] !== state) continue
+            val view = state.view
+            val target = state.target
+            if (!belongsToMessageContainer(view)) {
+                streamingAnimations.remove(state.key)
+                streamingRendered.remove(state.key)
+                streamingMarkdownCaches.remove(state.key)
+                locallyAnimatedMessages.remove(state.key)
+                continue
+            }
+
+            if (state.shownOffset < target.length) {
+                val elapsedMs = frameMs - state.lastTextUpdateMs
+                val backlog = target.codePointCount(state.shownOffset, target.length)
+                val remainingMs = state.burstDeadlineMs - state.lastTextUpdateMs
+                val step = StreamingTextPolicy.streamingStep(backlog, elapsedMs, remainingMs)
+                if (step > 0) {
+                    val next = StreamingTextPolicy.nextOffset(target, state.shownOffset, step)
+                    state.shownOffset = next
+                    state.lastTextUpdateMs = frameMs
+                    state.markdownCache.update(
+                        target = target,
+                        shownOffset = next,
+                        view = view,
+                        applyAlpha = true,
+                    )
+                    if (shouldFollowMessageBottom()) {
+                        followBottomNeeded = true
+                    }
+                    if (next >= target.length) {
+                        state.fadeDeadlineMs = frameMs + StreamingTextPolicy.STREAM_FADE_MS
+                    }
+                }
+            } else {
+                if (frameMs >= state.fadeDeadlineMs) {
+                    state.markdownCache.clearFade(view)
+                    streamingRendered[state.key] = target
+                    streamingAnimations.remove(state.key)
+                    if (!state.message.pending) {
+                        locallyAnimatedMessages.remove(state.key)
+                    }
+                }
+            }
+        }
+
+        if (followBottomNeeded) {
+            registerMessageScrollRestore(followBottom = true, previousScrollY = previousScrollY)
+        }
+
+        if (streamingAnimations.isEmpty()) {
+            return
+        }
+
+        var minDelayMs = Long.MAX_VALUE
+        for (state in streamingAnimations.values) {
+            if (state.shownOffset < state.target.length) {
+                val dueAt = minOf(state.lastTextUpdateMs + StreamingTextPolicy.STREAM_CHARACTER_MS, state.burstDeadlineMs)
+                val delay = maxOf(0L, dueAt - frameMs)
+                if (delay < minDelayMs) minDelayMs = delay
+            } else {
+                val delay = maxOf(0L, state.fadeDeadlineMs - frameMs)
+                if (delay < minDelayMs) minDelayMs = delay
+            }
+        }
+        scheduleNextStreamingFrame(minDelayMs)
+    }
+
+    private fun belongsToMessageContainer(view: View): Boolean {
+        var ancestor: View? = view
+        while (ancestor != null && ancestor !== messageContainer) {
+            ancestor = ancestor.parent as? View
+        }
+        return ancestor === messageContainer
     }
 
     private fun styledMessage(source: String): CharSequence {
-        val text = SpannableStringBuilder(source)
-        Regex("(?m)^(#{1,6})[ \\t]+(.+)$").findAll(text).toList().asReversed().forEach { match ->
-            val markerStart = match.range.first
-            val contentStart = match.groups[2]?.range?.first ?: return@forEach
-            val level = match.groups[1]?.value?.length ?: 6
-            val contentLength = match.groups[2]?.value?.length ?: 0
-            text.delete(markerStart, contentStart)
-            val headingEnd = (markerStart + contentLength).coerceAtMost(text.length)
-            text.setSpan(StyleSpan(Typeface.BOLD), markerStart, headingEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-            val scale = when (level) {
-                1 -> 1.16f
-                2 -> 1.12f
-                3 -> 1.08f
-                else -> 1.04f
-            }
-            text.setSpan(RelativeSizeSpan(scale), markerStart, headingEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        Regex("(?m)^[ \\t]*-{3,}[ \\t]*$").findAll(text).toList().asReversed().forEach { match ->
-            text.replace(match.range.first, match.range.last + 1, "────────")
-            text.setSpan(
-                ForegroundColorSpan(COLOR_MUTED),
-                match.range.first,
-                (match.range.first + 8).coerceAtMost(text.length),
-                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-            )
-        }
-        Regex("\\*\\*(.+?)\\*\\*", setOf(RegexOption.DOT_MATCHES_ALL)).findAll(text).toList().asReversed().forEach { match ->
-            val start = match.range.first
-            val endExclusive = match.range.last + 1
-            text.delete(endExclusive - 2, endExclusive)
-            text.delete(start, start + 2)
-            text.setSpan(StyleSpan(Typeface.BOLD), start, endExclusive - 4, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        Regex("`([^`\\n]+)`").findAll(text).toList().asReversed().forEach { match ->
-            val start = match.range.first
-            val endExclusive = match.range.last + 1
-            text.delete(endExclusive - 1, endExclusive)
-            text.delete(start, start + 1)
-            val styledEnd = endExclusive - 2
-            text.setSpan(TypefaceSpan("monospace"), start, styledEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-            text.setSpan(BackgroundColorSpan(COLOR_INLINE_CODE), start, styledEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        return text
+        return StreamingMarkdownCache.styleMarkdown(source, COLOR_MUTED, COLOR_INLINE_CODE)
     }
 
     private fun maybeHandleCredentialFailure(messages: List<ChatMessage>) {
@@ -3947,6 +4086,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun renderSessionList() {
+        if (!drawerRenderGate.requestRender()) return
         sessionList.removeAllViews()
         val pendingSessionIds = (pendingApprovals.values.map { it.sessionId } + pendingQuestions.values.map { it.sessionId }).distinct()
         if (pendingSessionIds.isNotEmpty()) {
@@ -4229,6 +4369,7 @@ class MainActivity : ComponentActivity() {
                         val id = api.forkSession(session.id)
                         mainHandler.post {
                             progress.visibility = View.GONE
+                            cancelAllStreamingAnimations()
                             currentSession = HarnessApi.Session(id, session.title, session.cwd, session.agentPreset, System.currentTimeMillis(), false, false)
                             closeDrawer()
                             refresh(true)
@@ -5427,6 +5568,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         paused = false
+        scheduleNextStreamingFrame()
         authWebView.onResume()
         if (debugTodoPreview || debugControlsPreview || debugApprovalPreview ||
             debugActivityPreview || debugMessageActionsPreview || debugProviderOnboardingPreview
@@ -5439,6 +5581,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         paused = true
+        drawerRenderGate.endTouch()
+        Choreographer.getInstance().removeFrameCallback(streamingFrameCallback)
+        choreographerCallbackPosted = false
         refreshGeneration += 1
         requestRunning = false
         stopMuxStream()
@@ -5451,6 +5596,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         api.closeMux(); connectionWork.replace(unconfiguredApi())
         refreshGeneration += 1
+        cancelAllStreamingAnimations()
         mainHandler.removeCallbacksAndMessages(null)
         worker.shutdownNow()
         streamWorker.shutdownNow()
@@ -5568,10 +5714,6 @@ class MainActivity : ComponentActivity() {
         private const val PREF_DEFAULT_WORKSPACE_ID = "default_workspace_id"
         private const val PREF_DRAWER_GROUP_WORKSPACE = "drawer_group_workspace"
         private const val PREF_DRAWER_ORDER_UPDATED = "drawer_order_updated"
-        private const val MAX_STREAM_BACKLOG = 64
-        private const val STREAM_CHARACTER_MS = 24L
-        private const val STREAM_FADE_MS = 90L
-        private const val STREAM_NEWEST_ALPHA = 92
         private const val LIVE_REFRESH_MS = 250L
         private const val STREAM_RECONNECT_MS = 800L
         private const val MODEL_CACHE_MS = 30_000L
