@@ -11,7 +11,7 @@
 | 总监（DSH 会话） | 拆任务、写验收标准、跑测试、审 diff、提交、维护台账 | 大规模前端实现 |
 | Codex（默认 `gpt-6-sol`） | 按 brief 实现并自测，交 diff | 改 AGENTS.md、push、动签名 |
 | agy（Antigravity） | 设计评审、看图；**目前不适合大文件落地**（12 分钟零落盘，已实测） | 大仓库代码改动 |
-| Yuri | 定优先级、决定 push | — |
+| Yuri | 定优先级；push 攒着定期推（2026-11-02 定），不逐次推 | — |
 
 ## 环境基线（2026-11-01 实测）
 
@@ -42,6 +42,7 @@
 | Q2 | Go 工具链实跑 `-race`/`vet` | — |
 | Q3 | `scripts/visual_diff.py` 视觉回归 | `6add7ef` |
 | Q4 | PR 模板 | `69947fe` |
+| Q15 | a11y：活动行 / 抽屉行改成真正 48dp（删扩边代理） | `99f7e74` |
 
 真机验收证据：`docs/qa/session-archive/device/`（8 张截图），归档全流程 6 步全过。
 
@@ -54,7 +55,6 @@
 | Q5c | 附件上传/重试（`session/attachment`） | 大 | 同上，涉及权限与进度态 |
 | Q5d | workspace 排序（`workspace/insertBefore`） | 中 | 与 Q5a 同一套交互 |
 | Q14 | 本地 QA 变体：**done** `-PqaInstall=true` 打同证书 `.qa` 包 | 小 | 已实测：带 `-PqaInstall=true` 出 `...mobile.qa`，默认仍出 `...mobile.debug` |
-| Q15 | a11y：活动折叠行 34dp → TouchDelegate 扩到 48dp | 小 | 审计见 `docs/qa/a11y-touch-targets/audit.md` |
 
 ## 暂停
 

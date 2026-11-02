@@ -82,3 +82,54 @@
 **未继续改的原因**：这三个按钮的高度由 drawerToolbarHost 的 36dp 行高决定，改成 48dp 会让抽屉头部整体变高 12dp，属于排版决策（这块是对着 Web 校准过的），需要人眼确认，不在无人值守时盲改。
 
 其余低目标：会话行 89px(34dp)、New Session 100px(38dp)、Settings 行 89px——都是列表行，属同一类"密度优先"的取舍。
+
+## 2026-11-02 11:20 决定：改成真正的 48dp 行（撤销扩边代理）
+
+Yuri 拍板「触控区要改」：不再用 TouchDelegate 把可点区扩出视觉边界，改为**行本身 48dp**。
+理由：34dp 行距与 48dp 目标之间是结构性矛盾，扩边必然吃到邻行，点两行之间的缝隙会打到上一行；
+行本身 48dp 后缝隙不再被代理覆盖，点缝就是点空。
+
+改动（MainActivity.kt）：
+
+| 位置 | 改前 | 改后 |
+| --- | --- | --- |
+| 活动折叠行（`activityDisclosure`） | 34dp + TouchDelegate | 48dp，删代理 |
+| 顶部标题（打开模型选择器） | 32dp + TouchDelegate | 48dp，删代理 |
+| 抽屉 New Session | 38dp | 48dp |
+| 抽屉工具栏行（搜索/视图/加工作区） | 36dp 行高把 48dp 按钮裁成 36dp | 48dp |
+| 抽屉工作区分组行 | 34dp | 48dp |
+| 抽屉 Settings 行 | 34dp | 48dp |
+| 待办卡片 header | 36dp | 48dp |
+| 设置弹窗关闭按钮 / 标题行 | 32dp | 48dp |
+| 搜索态工具栏 | 30dp | 48dp |
+
+不改：输入框 44dp（文本输入卡片，不是离散落点）、菜单项 44dp（见下"仍未达标"）。
+
+## 2026-11-02 11:21 真机复测（Pixel 10，1.1.2-qa）
+
+`uiautomator dump` 的 clickable 节点高度（126px = 48dp）：
+
+| 节点 | 改前 | 改后 |
+| --- | --- | --- |
+| 活动折叠行 ×10 | 89px (34dp) | **126px (48dp)** |
+| 顶部标题 | 84px (32dp) | **126px (48dp)** |
+| New Session | 100px (38dp) | **126px (48dp)** |
+| 搜索/视图/加工作区 | 95px (36dp) | **126px (48dp)** |
+| 工作区分组行 | 89px (34dp) | **126px (48dp)** |
+| Settings 行 | 89px (34dp) | **126px (48dp)** |
+| 待办 header | 95px (36dp) | **126px (48dp)** |
+| 设置弹窗关闭 | 84px (32dp) | **126px (48dp)** |
+| 输入框 | 116px (44dp) | 116px (44dp)，有意保留 |
+
+缝隙行为实测：两行之间 13px 的缝隙（y=414）点击后**没有任何行展开**（旧实现会展开上一行）；
+点行中心（y=483）仍正常展开（content-desc 变成 "tap to collapse"）。
+
+截图（本地，不入库）：`.qa-evidence/a11y-48dp/` 的 `before-drawer.png`、`after-drawer.png`、
+`after-transcript.png`、`after-settings-popup.png`。
+
+## 仍未达标（本轮不做）
+
+- 菜单项 44dp：`drillMenuRow` / `choiceMenuRow`（MainActivity.kt:4598-4638）、确认弹窗按钮 44dp（4774-4776）。
+  都在弹层里，离 48dp 差 4dp，改会连带弹层高度，留作下一轮。
+- TalkBack 全量走查、更多机型、长历史性能仍是 OI-007 的剩余部分。
+
