@@ -5,7 +5,7 @@ internal object StreamingTextPolicy {
     const val STREAM_CHARACTER_MS = 24L
     const val STREAM_FADE_MS = 90L
     const val STREAM_NEWEST_ALPHA = 92
-    const val MAX_CATCH_UP_MS = 768L
+    const val MAX_CATCH_UP_MS = 3500L
 
     /** A fixed deadline avoids an exponentially shrinking tail that never catches up. */
     fun streamingStep(backlog: Int, elapsedMs: Long, remainingMs: Long): Int {

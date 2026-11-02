@@ -1,5 +1,6 @@
 package app.deepseek.harness.mobile
 
+import app.deepseek.harness.mobile.StreamingTextPolicy.MAX_CATCH_UP_MS
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -7,16 +8,17 @@ import org.junit.Test
 class StreamingTextPolicyTest {
     @Test
     fun smallBacklogRevealsOneCodePointAtNormalCadence() {
-        assertEquals(0, StreamingTextPolicy.streamingStep(8, 23, 768))
-        assertEquals(1, StreamingTextPolicy.streamingStep(8, 24, 768))
-        assertEquals(1, StreamingTextPolicy.streamingStep(8, 33, 768))
+        assertEquals(0, StreamingTextPolicy.streamingStep(8, 23, MAX_CATCH_UP_MS))
+        assertEquals(1, StreamingTextPolicy.streamingStep(8, 24, MAX_CATCH_UP_MS))
+        assertEquals(1, StreamingTextPolicy.streamingStep(8, 33, MAX_CATCH_UP_MS))
     }
 
     @Test
     fun largerBacklogAcceleratesWithoutRevealingEverythingOnFirstTick() {
-        val medium = StreamingTextPolicy.streamingStep(64, 24, 768)
-        val large = StreamingTextPolicy.streamingStep(50_000, 24, 768)
+        val medium = StreamingTextPolicy.streamingStep(256, 24, MAX_CATCH_UP_MS)
+        val large = StreamingTextPolicy.streamingStep(50_000, 24, MAX_CATCH_UP_MS)
         assertTrue(medium > 1)
+        assertTrue(medium < 256)
         assertTrue(large > medium)
         assertTrue(large < 50_000)
     }
@@ -26,9 +28,9 @@ class StreamingTextPolicyTest {
         for (initial in listOf(1, 8, 64, 50_000, Int.MAX_VALUE)) {
             var backlog = initial
             var elapsed = 0L
-            while (elapsed < StreamingTextPolicy.MAX_CATCH_UP_MS && backlog > 0) {
-                val frameMs = minOf(33L, StreamingTextPolicy.MAX_CATCH_UP_MS - elapsed)
-                val step = StreamingTextPolicy.streamingStep(backlog, frameMs, StreamingTextPolicy.MAX_CATCH_UP_MS - elapsed)
+            while (elapsed < MAX_CATCH_UP_MS && backlog > 0) {
+                val frameMs = minOf(33L, MAX_CATCH_UP_MS - elapsed)
+                val step = StreamingTextPolicy.streamingStep(backlog, frameMs, MAX_CATCH_UP_MS - elapsed)
                 assertTrue("step must stay within backlog", step in 0..backlog)
                 backlog -= step
                 elapsed += frameMs
@@ -39,14 +41,15 @@ class StreamingTextPolicyTest {
 
     @Test
     fun zeroBacklogNeverAdvancesEvenAfterDeadline() {
-        assertEquals(0, StreamingTextPolicy.streamingStep(0, 0, 768))
+        assertEquals(0, StreamingTextPolicy.streamingStep(0, 0, MAX_CATCH_UP_MS))
         assertEquals(0, StreamingTextPolicy.streamingStep(0, 900, -100))
     }
 
     @Test
     fun delayedFramesRespectDeadlineAndCannotOvershootBacklog() {
-        assertEquals(17, StreamingTextPolicy.streamingStep(17, 800, 768))
-        assertEquals(17, StreamingTextPolicy.streamingStep(17, Long.MAX_VALUE, 768))
+        assertEquals(17, StreamingTextPolicy.streamingStep(17, MAX_CATCH_UP_MS, MAX_CATCH_UP_MS))
+        assertEquals(17, StreamingTextPolicy.streamingStep(17, MAX_CATCH_UP_MS + 32, MAX_CATCH_UP_MS))
+        assertEquals(17, StreamingTextPolicy.streamingStep(17, Long.MAX_VALUE, MAX_CATCH_UP_MS))
         assertEquals(17, StreamingTextPolicy.streamingStep(17, 24, 0))
         assertEquals(5, StreamingTextPolicy.streamingStep(5, 24, 24))
         assertEquals(1, StreamingTextPolicy.streamingStep(5, 24, 120))
