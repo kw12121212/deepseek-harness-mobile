@@ -54,10 +54,12 @@ dshbridge 的命令与部署限制见 [bridge/README.md](bridge/README.md)。
 ## 前端实现分工
 
 - UI/前端代码（Compose 界面、主题、动效、无障碍、视觉细节）**优先交给 agy**：终端通过 agy 走
-  Antigravity，调用 **Gemini 4 Pro**，它在界面识别和前端实现上明显更强。调用方式按 `agy-subagent`。
+  Antigravity。模型用 `agy models` 现查（默认 `gemini-3.8-flash-high`；旧文档里的 Gemini 3.1/4 Pro 已不在列表）。
+  调用方式见 `agy-subagent` 技能，统一走 `~/.local/bin/agy-run`，不要手拼 `agy` 命令行。
 - 交给 agy 必须一次给全：目标界面截图或 DSH Web 对应页、相关 theme/资源与文件路径、要复刻的交互状态
   （空 / 加载 / 错误 / 深色）、验收标准（截图对比或测试）。它写完由父代理跑真机验收。
-- 后端、`bridge/`、协议与构建脚本不走 agy，父代理自己改并负责整合。
+  run 证据（prompt、diff、agy 会话 id）在 `~/.dsh/tmp/agy-runs/`，出错先看那里。
+- 后端、`bridge/`、协议与构建脚本不走 agy，父代理自己改并负责整合；agy 跑完先审 `changes.diff`，越界文件拒绝。
 
 ## 设计基准：DSH Web
 
