@@ -69,6 +69,11 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 
+internal enum class ComposerAction { STOP, SEND }
+
+internal fun composerAction(running: Boolean, hasDraft: Boolean): ComposerAction =
+    if (running && !hasDraft) ComposerAction.STOP else ComposerAction.SEND
+
 internal fun sessionOrder(sessions: List<HarnessApi.Session>, lastUpdated: Boolean): List<HarnessApi.Session> {
     // Host 只给 last update time，assistant 时间不可得；list/projections 无此字段。
     // 从 page 推导需逐会话读取历史，可能继续翻页，无法满足最多新增一次 RPC 的限制。
@@ -952,7 +957,20 @@ class MainActivity : ComponentActivity() {
             scaleType = ImageView.ScaleType.CENTER
             contentDescription = tr("发送消息", "Send message")
             isClickable = true
-            setOnClickListener { if (currentSession?.running == true) cancelCurrent() else sendPrompt() }
+            setOnClickListener {
+                when (composerAction(currentSession?.running == true, composer.text?.isNotBlank() == true)) {
+                    ComposerAction.STOP -> cancelCurrent()
+                    ComposerAction.SEND -> sendPrompt()
+                }
+            }
+            setOnLongClickListener {
+                if (currentSession?.running == true) {
+                    cancelCurrent()
+                    true
+                } else {
+                    false
+                }
+            }
         }
         applySendButtonVisual(enabled = false)
         toolbar.addView(sendButton, LinearLayout.LayoutParams(dp(48), dp(48)))
@@ -3161,9 +3179,6 @@ class MainActivity : ComponentActivity() {
         )
         permissionButton.compoundDrawableTintList = ColorStateList.valueOf(COLOR_CONTROL_TEXT)
         permissionButton.compoundDrawablePadding = dp(4)
-        val running = currentSession?.running == true
-        sendButton.setImageResource(if (running) R.drawable.ic_stop_square else R.drawable.ic_send_harness)
-        sendButton.contentDescription = if (running) tr("停止当前任务", "Stop current task") else tr("发送消息", "Send message")
         val context = currentContextUsage
         contextSeat.visibility = if (context == null) View.GONE else View.VISIBLE
         if (context != null) {
@@ -4362,6 +4377,9 @@ class MainActivity : ComponentActivity() {
         if (!::sendButton.isInitialized || !::composer.isInitialized) return
         val running = currentSession?.running == true
         val hasDraft = composer.text?.isNotBlank() == true
+        val action = composerAction(running, hasDraft)
+        sendButton.setImageResource(if (action == ComposerAction.STOP) R.drawable.ic_stop_square else R.drawable.ic_send_harness)
+        sendButton.contentDescription = if (action == ComposerAction.STOP) tr("停止当前任务", "Stop current task") else tr("发送消息", "Send message")
         val enabled = running || (composer.isEnabled && hasDraft)
         sendButton.isEnabled = enabled
         applySendButtonVisual(enabled)
