@@ -13,7 +13,6 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
-import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.ColorDrawable
@@ -37,7 +36,6 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
-import android.view.TouchDelegate
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -716,7 +714,7 @@ class MainActivity : ComponentActivity() {
                     setOnClickListener { showModels() }
                     maxWidth = dp(150)
                 }
-                addView(titleView, LinearLayout.LayoutParams(WRAP, dp(32)))
+                addView(titleView, LinearLayout.LayoutParams(WRAP, dp(48)))
                 statusView = TextView(this@MainActivity).apply {
                     text = tr("· 连接中", "· Connecting")
                     textSize = 10f
@@ -728,18 +726,6 @@ class MainActivity : ComponentActivity() {
                 addView(statusView, LinearLayout.LayoutParams(WRAP, dp(32)).apply { marginStart = dp(6) })
             }
             addView(titleCluster, LinearLayout.LayoutParams(0, dp(48), 1f))
-            // The title text is 32dp tall but its click opens the model picker; grow only the
-            // touch rect to the cluster's 48dp height (OI-007).
-            titleCluster.post {
-                val hit = Rect()
-                titleView.getHitRect(hit)
-                val grow = (dp(48) - hit.height()) / 2
-                if (grow > 0 && hit.height() > 0) {
-                    hit.top -= grow
-                    hit.bottom += grow
-                    titleCluster.touchDelegate = TouchDelegate(hit, titleView)
-                }
-            }
             addView(buildContextSeat(), LinearLayout.LayoutParams(WRAP, dp(48)).apply { marginEnd = dp(2) })
             addView(iconAction(R.drawable.ic_new_session_harness, tr("新建会话", "New session")) { showNewSession() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         }, LinearLayout.LayoutParams(MATCH, 0, 1f))
@@ -1219,7 +1205,7 @@ class MainActivity : ComponentActivity() {
             setImageResource(if (todosExpanded) R.drawable.ic_chevron_down_harness else R.drawable.ic_chevron_up_harness)
             imageTintList = ColorStateList.valueOf(COLOR_MUTED)
         }, LinearLayout.LayoutParams(dp(18), dp(18)))
-        panel.addView(header, LinearLayout.LayoutParams(MATCH, dp(36)))
+        panel.addView(header, LinearLayout.LayoutParams(MATCH, dp(48)))
 
         if (todosExpanded) {
             val list = LinearLayout(this).apply {
@@ -1498,11 +1484,11 @@ class MainActivity : ComponentActivity() {
                     includeFontPadding = false
                     gravity = Gravity.CENTER
                 }, LinearLayout.LayoutParams(WRAP, MATCH))
-            }, LinearLayout.LayoutParams(MATCH, dp(38)).apply {
+            }, LinearLayout.LayoutParams(MATCH, dp(48)).apply {
                 bottomMargin = dp(8)
             })
             drawerToolbarHost = FrameLayout(this@MainActivity)
-            addView(drawerToolbarHost, LinearLayout.LayoutParams(MATCH, dp(36)).apply {
+            addView(drawerToolbarHost, LinearLayout.LayoutParams(MATCH, dp(48)).apply {
                 topMargin = dp(2)
                 bottomMargin = dp(4)
             })
@@ -1525,7 +1511,7 @@ class MainActivity : ComponentActivity() {
                 compoundDrawableTintList = ColorStateList.valueOf(COLOR_DRAWER_PRIMARY)
                 isClickable = true
                 setOnClickListener { anchor -> showDrawerSettings(anchor) }
-            }, LinearLayout.LayoutParams(MATCH, dp(34)).apply {
+            }, LinearLayout.LayoutParams(MATCH, dp(48)).apply {
                 topMargin = dp(4)
                 bottomMargin = dp(4)
             })
@@ -1647,7 +1633,7 @@ class MainActivity : ComponentActivity() {
                         .showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
                 }
             }
-            drawerToolbarHost.addView(search, FrameLayout.LayoutParams(MATCH, dp(30), Gravity.CENTER_VERTICAL))
+            drawerToolbarHost.addView(search, FrameLayout.LayoutParams(MATCH, dp(48), Gravity.CENTER_VERTICAL))
             return
         }
 
@@ -1661,7 +1647,7 @@ class MainActivity : ComponentActivity() {
                 setTextColor(COLOR_DRAWER_TERTIARY)
                 gravity = Gravity.CENTER_VERTICAL
                 includeFontPadding = false
-            }, LinearLayout.LayoutParams(0, dp(36), 1f).apply { marginStart = dp(2) })
+            }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(2) })
             addView(drawerIconButton(R.drawable.ic_search_outline, tr("搜索会话", "Search sessions"), startMarginDp = 4) {
                 drawerSearchExpanded = true
                 renderDrawerToolbar()
@@ -1672,7 +1658,7 @@ class MainActivity : ComponentActivity() {
             addView(drawerIconButton(R.drawable.ic_folder_add_outline, tr("添加工作区", "Add workspace"), startMarginDp = 4) {
                 showAddWorkspaceDialog()
             })
-        }, FrameLayout.LayoutParams(MATCH, dp(36), Gravity.CENTER_VERTICAL))
+        }, FrameLayout.LayoutParams(MATCH, dp(48), Gravity.CENTER_VERTICAL))
     }
 
     private fun showDrawerViewOptions(anchor: View) {
@@ -1974,16 +1960,16 @@ class MainActivity : ComponentActivity() {
                     setTextColor(COLOR_TEXT)
                     includeFontPadding = false
                     gravity = Gravity.CENTER_VERTICAL
-                }, LinearLayout.LayoutParams(0, dp(34), 1f))
+                }, LinearLayout.LayoutParams(0, dp(48), 1f))
                 addView(ImageButton(this@MainActivity).apply {
                     setImageResource(R.drawable.ic_close_outline)
                     imageTintList = ColorStateList.valueOf(COLOR_CONTROL_TEXT)
                     background = null
                     contentDescription = tr("关闭设置", "Close settings")
-                    setPadding(dp(8), dp(8), dp(8), dp(8))
+                    setPadding(dp(16), dp(16), dp(16), dp(16))
                     setOnClickListener { popup.dismiss() }
-                }, LinearLayout.LayoutParams(dp(32), dp(32)))
-            }, LinearLayout.LayoutParams(MATCH, dp(32)))
+                }, LinearLayout.LayoutParams(dp(48), dp(48)))
+            }, LinearLayout.LayoutParams(MATCH, dp(48)))
         }
         fun addSettingsRow(icon: Int, title: String, action: () -> Unit) {
             panel.addView(LinearLayout(this).apply {
@@ -2594,7 +2580,7 @@ class MainActivity : ComponentActivity() {
             imageTintList = ColorStateList.valueOf(COLOR_DRAWER_TERTIARY)
             rotation = if (expanded) 90f else 0f
         }, LinearLayout.LayoutParams(dp(14), dp(14)).apply { marginStart = dp(6) })
-        layoutParams = LinearLayout.LayoutParams(MATCH, dp(34))
+        layoutParams = LinearLayout.LayoutParams(MATCH, dp(48))
     }
 
     private fun refresh(showSpinner: Boolean, liveOnly: Boolean = false) {
@@ -3326,7 +3312,7 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(2), 0, dp(2), 0)
-            minimumHeight = dp(34)
+            minimumHeight = dp(48)
         }
         val icon = when (message.activityKind) {
             ChatMessage.ActivityKind.THINK -> R.drawable.ic_think_harness
@@ -3394,20 +3380,11 @@ class MainActivity : ComponentActivity() {
                 details.visibility = if (details.visibility == View.VISIBLE) View.GONE else View.VISIBLE
                 header.contentDescription = if (details.visibility == View.VISIBLE) tr("$accessibilityTitle，点击收起", "$accessibilityTitle, tap to collapse") else tr("$accessibilityTitle，点击展开", "$accessibilityTitle, tap to expand")
             }
-            // Row stays 34dp for the Web-calibrated density; grow only the touch area to the
-            // 48dp platform minimum so it stops being a sub-minimum target (OI-007).
-            outer.post {
-                val hit = Rect()
-                header.getHitRect(hit)
-                val grow = (dp(48) - hit.height()) / 2
-                if (grow > 0 && hit.height() > 0) {
-                    hit.top -= grow
-                    hit.bottom += grow
-                    outer.touchDelegate = TouchDelegate(hit, header)
-                }
-            }
+            // The row itself is 48dp (platform minimum). A TouchDelegate that grew the touch
+            // rect instead overlapped the neighbouring row by more than the 5dp gap, so taps
+            // in the gap hit the row above (OI-007).
         }
-        outer.addView(header, LinearLayout.LayoutParams(MATCH, dp(34)))
+        outer.addView(header, LinearLayout.LayoutParams(MATCH, dp(48)))
         outer.addView(details, LinearLayout.LayoutParams(MATCH, WRAP).apply {
             marginStart = dp(4)
             topMargin = dp(2)
