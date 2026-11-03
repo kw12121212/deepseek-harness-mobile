@@ -3,7 +3,7 @@ schema_version: 2
 artifact_type: roadmap_index
 schema_file: ../schemas/roadmap-index.yaml
 milestones:
-  0001-sample-milestone:
-    title: Sample Milestone Title
-    path: .strict-spec-driven/roadmap/milestones/0001-sample-milestone.yaml
+  tailscale-private-transport:
+    title: 内置 Tailscale 私有链路与 dsh 版本锁定
+    path: roadmap/milestones/tailscale-private-transport.yaml
     status: proposed

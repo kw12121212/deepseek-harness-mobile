@@ -1,0 +1,13 @@
+schema: strict-spec-driven/planned-change/v1
+schema_version: 1
+artifact_type: planned_change
+schema_file: ../../templates/strict-spec-driven/schemas/planned-change.yaml
+planned_change:
+  id: security-completeness-review
+  milestone: tailscale-private-transport
+status: planned
+summary: 安全性与功能完整性评审收口：安全边界清单、凭据与 token 处理审计、对 DSH Web parity 的功能对照，QA 证据落 docs/qa/
+details: 安全性：逐项核对并留证据——loopback-only 监听与 serve-only 暴露（无 --tcp/Funnel/ssh -L 旁路）、pair/rpc/stream/export 每帧凭据校验在 serve 转发形态下仍成立、撤销即时性不变、auth key 与设备 token 的存储/日志/备份边界、Host/X-Forwarded-For 取址与限流在 127.0.0.1 对端形态下的正确性、已知未认证端点仍为空 404；产出安全边界清单文档并对照 private-content-assistant 的 security-boundary 范式。功能性：以 harness-feature-parity.md 与 .strict-spec-driven/specs/ 全量核对 tailscale 链路下的行为（实时流、审批问答、导出、后台通知），明确列出未覆盖/有意不同项。结论必须能指到具体证据文件（docs/qa/<topic>/），发现的问题开后续变更而不是在本变更里顺手修。
+depends_on:
+  - ts-token-profile
+  - dsh-version-lock

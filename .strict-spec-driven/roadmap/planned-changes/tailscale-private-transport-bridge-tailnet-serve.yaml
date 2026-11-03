@@ -1,0 +1,11 @@
+schema: strict-spec-driven/planned-change/v1
+schema_version: 1
+artifact_type: planned_change
+schema_file: ../../templates/strict-spec-driven/schemas/planned-change.yaml
+planned_change:
+  id: bridge-tailnet-serve
+  milestone: tailscale-private-transport
+status: planned
+summary: dshbridge host 侧经 tailscale serve --https 暴露：保持 loopback 监听，提供 serve 脚本与部署文档，真机验证 WSS stream 转发
+details: 参照 private-content-assistant 的 scripts/ops/tailscale-serve.sh 与 docs/tailscale-access.md：dshbridge 继续只监听回环（或加 100.x 仅限 tailnet 的绑定由设计决策），公网入口一律由 tailscale serve --https 承担；脚本拒绝 serve --tcp/--tls-terminated-tcp/Funnel 占用目标端口（这些转发不写 X-Forwarded-For，会让远端请求被当作本机请求）。必须真机验证 stream 路由的 WSS 长连接经 serve 转发稳定（rpc/export 已有先例）；serve 后对端恒为 127.0.0.1、真实 tailnet 地址在 X-Forwarded-For，需核对 bridge 现有限流、凭据校验与日志取址在该形态下仍正确。产出：bridge/scripts 下 serve 脚本、部署文档段落（入 docs/architecture/ 或 bridge/README.md）、docs/qa/ 验证证据。服务端不改 RPC 行为。
+depends_on: []

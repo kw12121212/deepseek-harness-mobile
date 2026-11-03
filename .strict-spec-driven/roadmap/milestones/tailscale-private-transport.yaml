@@ -1,0 +1,48 @@
+schema: strict-spec-driven/roadmap-milestone/v2
+schema_version: 2
+artifact_type: roadmap_milestone
+schema_file: ../schemas/roadmap-milestone.yaml
+milestone:
+  tailscale-private-transport:
+    title: 内置 Tailscale 私有链路与 dsh 版本锁定
+order: 100
+goal: 手机 App 内嵌 Tailscale（tsnet）隧道，经用户个人 tailnet 私有直达 dshbridge，取消公网入口依赖；连接资料必须携带 token 参数（tailscale tagged auth key）完成非交互入网；同时把 dsh 版本契约从提示文案升级为可校验的锁定，整条链路通过安全性与功能完整性评审。
+scope:
+  in:
+    - Android 内嵌 tsnet 隧道：复制 ../private-content-assistant（源自 ../mobile-manage）已真机验证的 tstunnel Go 薄包装与 AAR 构建脚本（gomobile 版本钉在 go.mod tool 指令，AAR 不入库）
+    - App 侧 LoopbackProxy 回环网络栈与 TunnelManager 生命周期（SetInterfacesJSON 注入网卡快照绕过 SELinux netlink、XDG_CACHE_HOME 私有缓存、ensureUp 幂等进程内单例、starting/connected/needs-key/failed 状态机）
+    - 连接资料带 token 参数：私有服务资料在 origin/pairPath 之外携带 tailscale 控制信息与 tagged auth key，导入即用非交互入网，设置页可重输，token 不入日志与备份
+    - dshbridge host 侧部署形态：保持 loopback 监听，经 tailscale serve --https 暴露（含 WSS stream 转发验证）与配套 serve/部署脚本
+    - dsh 版本锁定：声明兼容的 dsh 版本（当前 0.2.0-rc.2），direct 与 bridge 两条路径连接时校验上游版本，不匹配明确拒绝或提示
+    - 安全性与功能完整性评审：安全边界清单、与 DSH Web parity 的功能对照、QA 证据落 docs/qa/<topic>/
+  out:
+    - tailscale Funnel 与任何公网直接暴露
+    - iOS 端；第三方 tailnet 账号或托管方案变更
+    - dshbridge 通用代理化或新增 RPC 能力（新能力仍走显式白名单评审）
+    - DSH Web 功能面扩展（子代理树、后台任务、计划任务等既有待办不并入本里程碑）
+done_criteria:
+  - spike 通过：tagged 节点经 tailscale serve 访问 dshbridge 被放行，完成一次配对与 RPC 调用
+  - 真机全链路：导入带 token 参数的连接资料 → 隧道自动 up → 配对 → 聊天/审批/导出可用，强杀重开免 key 重连
+  - token 参数在连接资料与设置页两个入口可用，且不出现在日志、错误信息与自动备份中
+  - dsh 版本锁定生效：两条路径对不兼容上游有明确的拒绝或提示行为，并有单元/集成测试
+  - 安全与功能完整性评审报告与 QA 证据落 docs/qa/，未覆盖项显式列出
+intake_questions:
+  - id: bridge-whois-layer
+    question: 在 tailscale serve 暴露 dshbridge 后，是否在设备 token 体系之上再叠加 Tailscale WhoIs 白名单校验
+    context: private-content-assistant 无自有认证、全靠 WhoIs 白名单 + Host/来源校验；本项目 bridge 已有配对/设备 token/撤销体系，且经 serve 转发后对端恒为 127.0.0.1、真实地址在 X-Forwarded-For
+    impact: 决定 bridge http/stream 入口的校验改动量与运维配置项（allowed_logins/allowed_tags），影响里程碑里 serve 暴露变更的规模
+    recommendation: 默认不叠加：设备 token 仍是唯一应用层凭据，tailnet 边界交给 ACL + serve；若安全评审发现 serve 转发削弱了现有凭据校验的输入（如日志取址），只做针对性修正，不引入第二套身份体系
+planned_changes: {}
+dependencies:
+  - ../private-content-assistant 与 ../mobile-manage 的 tstunnel/loopback/构建脚本已真机验证，可复制而非重写
+  - 开发机具备 Go（构建 AAR）、Android SDK/NDK、ADB 真机与 host 端 tailscale 环境
+risks:
+  - gomobile/NDK/tailscale 升级会改变行为：版本钉死，升级必须重新真机验证（mobile-manage 已知坑）
+  - tailscale serve 对 WSS 长连接（stream 路由）的转发行为需真机验证，不成立则 stream 需要替代承载
+  - 经 serve 转发后对端恒为 127.0.0.1、真实地址在 X-Forwarded-For：与 dshbridge 现有凭据校验、限流与日志的交互需重新评审
+  - APK 体积预计增加约 21MB（arm64），tsnet 常驻内存上升
+status: proposed
+notes:
+  - 安全铁律（沿自 private-content-assistant 的 security-boundary）：服务只能经 tailscale serve --https 暴露（它会写 X-Forwarded-For）；禁止 serve --tcp、--tls-terminated-tcp、Funnel、ssh -L 等不写该头的转发，否则远端请求会被当作 loopback 本机请求绕过身份校验
+  - token 参数语义按参考项目落地：tstunnel NewNode(hostname, dir, authKey)，authKey 即 token；节点用专用 tag（如 tag:dsh-mobile），与其它项目的 tag 分开可单独吊销
+details: 落地顺序：host 侧 serve 暴露先行（否则 spike 无靶子），再 app 侧 spike 验证 tagged 入网与连通，通过后集成 TunnelManager/设置页，随后补 token 参数化连接资料；dsh 版本锁定与上述并行，最后做安全与功能完整性评审收口。app/ 与 bridge/ 仍按仓库分工独立提交；UI 工作按 AGENTS.md 交给 agy 出稿、父代理真机验收。
