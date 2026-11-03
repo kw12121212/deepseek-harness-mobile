@@ -20,12 +20,14 @@ scope:
     - iOS 端；第三方 tailnet 账号或托管方案变更
     - dshbridge 通用代理化或新增 RPC 能力（新能力仍走显式白名单评审）
     - DSH Web 功能面扩展（子代理树、后台任务、计划任务等既有待办不并入本里程碑）
+    - direct 连接模式经 tailnet 直连原生 dsh（不经 dshbridge）不在本里程碑；如需要另立变更评估
 done_criteria:
   - spike 通过：tagged 节点经 tailscale serve 访问 dshbridge 被放行，完成一次配对与 RPC 调用
   - 真机全链路：导入带 token 参数的连接资料 → 隧道自动 up → 配对 → 聊天/审批/导出可用，强杀重开免 key 重连
   - token 参数在连接资料与设置页两个入口可用，且不出现在日志、错误信息与自动备份中
   - dsh 版本锁定生效：两条路径对不兼容上游有明确的拒绝或提示行为，并有单元/集成测试
   - 安全与功能完整性评审报告与 QA 证据落 docs/qa/，未覆盖项显式列出
+  - 既有路径回归通过：direct 直连与 bridge 公网 HTTPS 私有连接在隧道集成后仍按 specs 行为工作（单元测试 + 真机冒烟），tailscale 链路是新增选项而非替换
 intake_questions:
   - id: bridge-whois-layer
     question: 在 tailscale serve 暴露 dshbridge 后，是否在设备 token 体系之上再叠加 Tailscale WhoIs 白名单校验

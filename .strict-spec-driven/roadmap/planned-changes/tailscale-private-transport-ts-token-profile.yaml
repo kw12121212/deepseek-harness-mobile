@@ -7,6 +7,6 @@ planned_change:
   milestone: tailscale-private-transport
 status: planned
 summary: 连接资料带 token 参数：私有服务资料携带 tailscale 控制信息与 tagged auth key，导入即非交互入网，设置页可重输，token 不入日志与备份
-details: 硬性要求（用户明确）：token 必须是参数而不是交互式登录。落地为私有服务连接资料 JSON 在 origin/pairPath 之外增加 tailscale 字段：控制服务器（默认官方）、节点 hostname 约定、tagged auth key（token）与 serve 暴露的 ts 域名 origin；导入资料即完成入网准备，无需浏览器登录。设置页提供重输/轮换 key 入口（authKey 过期或吊销后 needs-key 状态引导到这里）。安全约束：token 不写日志、不进错误信息与崩溃上报、不进自动备份（设备 token 已按此处理，auth key 同标准）；UI 不回显完整 key。auth key 由 host 侧 pair 流程同源生成（tag:dsh-mobile、可重复使用或一次性由部署决定），资料样例与字段文档随变更交付。bridge 已验证的设备 token 体系不变，auth key 只服务于 tailnet 入网。
+details: 硬性要求（用户明确）：token 必须是参数而不是交互式登录。落地为私有服务连接资料 JSON 在 origin/pairPath 之外增加 tailscale 字段：控制服务器（默认官方）、节点 hostname 约定、tagged auth key（token）与 serve 暴露的 ts 域名 origin；导入资料即完成入网准备，无需浏览器登录。auth key 的来源：由操作者在 Tailscale 管理后台生成（专用 tag，如 tag:dsh-mobile，与其它项目分开、可单独吊销），再由 pair 输出的 connection JSON 合并或随资料一并交给手机；设置页提供重输/轮换 key 入口（auth key 过期或吊销后 needs-key 状态引导到这里）。dsh-bridge 集成 Tailscale API 代发 key 不在默认范围：那要求服务端另存 Tailscale API token、扩大凭据面，如确有需要作为后续独立变更评审。安全约束：token 不写日志、不进错误信息与崩溃上报、不进自动备份（设备 token 已按此处理，auth key 同标准）；UI 不回显完整 key。bridge 已验证的设备 token 体系不变，auth key 只服务于 tailnet 入网。
 depends_on:
   - ts-tunnel-integration
