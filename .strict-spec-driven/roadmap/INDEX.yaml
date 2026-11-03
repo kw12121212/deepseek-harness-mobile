@@ -1,0 +1,9 @@
+schema: strict-spec-driven/roadmap-index/v2
+schema_version: 2
+artifact_type: roadmap_index
+schema_file: ../schemas/roadmap-index.yaml
+milestones:
+  0001-sample-milestone:
+    title: Sample Milestone Title
+    path: .strict-spec-driven/roadmap/milestones/0001-sample-milestone.yaml
+    status: proposed

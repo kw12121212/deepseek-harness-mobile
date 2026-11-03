@@ -1,0 +1,28 @@
+schema: strict-spec-driven/main-spec/v1
+schema_version: 1
+artifact_type: main_spec
+schema_file: templates/strict-spec-driven/schemas/main-spec.yaml
+spec:
+  id: session-management
+  title: 会话与模型管理
+requirements:
+  session-crud:
+    strength: MUST
+    statement: 应用必须支持会话列表、选择、创建、重命名、fork、归档/恢复归档与取消；长按抽屉中的会话弹出操作菜单，已归档会话折叠在「已归档」分组中。
+    scenarios:
+      long-press-menu:
+        - GIVEN: 抽屉中存在会话
+        - WHEN: 长按某个会话
+        - THEN: 弹出重命名、fork、归档等操作菜单
+      archive-toggle:
+        - GIVEN: 存在已归档会话
+        - WHEN: 在「已归档」分组中长按该会话
+        - THEN: 会话解除归档并回到正常列表
+  model-selection:
+    strength: MUST
+    statement: 应用必须支持在会话中选择模型，并呈现适配器上报的思考档位；模型目录部分失败时在选择器中展示对应错误并提供重试。
+    scenarios:
+      select-model:
+        - GIVEN: 会话已连接且模型目录可用
+        - WHEN: 用户打开模型选择器并选择模型与思考档位
+        - THEN: 选择即时生效并反映在会话中

@@ -1,0 +1,36 @@
+schema: strict-spec-driven/main-spec/v1
+schema_version: 1
+artifact_type: main_spec
+schema_file: templates/strict-spec-driven/schemas/main-spec.yaml
+spec:
+  id: server-connection
+  title: 服务器连接与两种连接模式
+requirements:
+  two-connection-modes:
+    strength: MUST
+    statement: 应用必须同时提供两种连接模式：直接连接原生 dsh 服务端地址，以及私有服务（dshbridge）——导入连接配置并输入一次性配对码完成设备配对；设备凭据与上游内部凭据相互独立。
+    scenarios:
+      direct-connect:
+        - GIVEN: 应用已安装且未预置任何服务器地址
+        - WHEN: 用户输入原生 dsh 服务端地址并点击测试并连接，完成可能出现的访问验证与测试提示
+        - THEN: 顶部显示已连接，进入会话界面
+      private-pair:
+        - GIVEN: 用户持有 dshbridge 生成的连接配置与一次性配对码
+        - WHEN: 在私有服务中导入配置并输入配对码
+        - THEN: 设备获得独立身份与凭据，后续请求经私有链路到达 dsh 服务端
+  transport-security:
+    strength: MUST
+    statement: 公网服务器地址必须使用 HTTPS；明文 HTTP 仅允许用于局域网 IP、localhost 或 .local 地址。
+    scenarios:
+      plaintext-scope:
+        - GIVEN: 用户正在配置服务器地址
+        - WHEN: 输入明文 HTTP 的公网域名
+        - THEN: 连接被拒绝并提示公网地址需要 HTTPS
+  state-persistence:
+    strength: MUST
+    statement: 强制停止并重新打开应用后，服务器配置、登录状态与当前会话必须保留。
+    scenarios:
+      restart-keeps-state:
+        - GIVEN: 应用已连接且存在当前会话
+        - WHEN: 强制停止后重新打开应用
+        - THEN: 无需重新配置即恢复服务器配置、登录状态与当前会话

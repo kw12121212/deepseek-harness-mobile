@@ -1,0 +1,32 @@
+schema: strict-spec-driven/config/v1
+schema_version: 1
+artifact_type: workflow_config
+preferred_human_language: Chinese
+context: Android 客户端（app/，Kotlin + Jetpack Compose，包名 app.deepseek.harness.mobile）连接自托管 DeepSeek Harness：作为 DSH Web 的移动形态，实时呈现 Agent 执行（思考/写入/工具调用/待办/上下文占用），支持会话管理、审批与前台问答。bridge/ 是自研 Go 通信壳 dshbridge：设备配对/认证/撤销 + 随机入口 + 显式 RPC 白名单，把受支持的请求转发到回环 dsh 服务端，绝不做通用代理。信息架构与视觉以本机 DSH Web 为准；提交用 Conventional Commits，docs/bridge/app 三类按主题独立提交且各自可构建。
+rules:
+  specs:
+    - Describe observable behavior only — no implementation details, technology choices, or internal structure
+    - MUST = required with no exceptions; SHOULD = default unless explicitly justified; MAY = genuinely optional
+    - Each requirement must be independently verifiable from outside the system
+  change:
+    - Implement only what is in scope in proposal.yaml — if scope needs to expand, use strict-spec-modify first, never expand silently
+    - When a requirement or task is ambiguous, ask the user before proceeding — do not assume or guess
+    - Delta specs must reflect what was actually built, not the original plan
+    - Mark tasks done immediately upon completion — never batch at the end
+    - Every change must include test tasks (validation + unit tests at minimum)
+    - 改界面前先对照本机 DSH Web 对应页面逐项记录复刻/有意不同/待定；触屏手势、返回栈与系统栏按 Android 习惯
+  code:
+    - Read existing code before modifying it
+    - Implement only what the current task requires — no speculative features
+    - No abstractions for hypothetical future needs (YAGNI)
+    - bridge 是显式 RPC 白名单的定向转发壳；新增能力先过白名单评审再谈 UI，绝不做通用 HTTP 代理
+  test:
+    - Tests must verify observable behavior described in specs, not internal implementation details
+    - Each test must be independent — no shared mutable state between tests
+    - Prefer real dependencies over mocks for code the project owns
+review_evidence:
+  project_regression:
+    method: complete_project_regression
+    command: ./gradlew :app:assembleDebug :app:testDebugUnitTest --rerun && export PATH="$HOME/.local/opt/go1.27.3/bin:$PATH" && (cd bridge && go vet ./... && go test -race -count=1 ./...)
+    meaning: Passing this command is required review evidence before strict-spec-review recommends archive or strict-spec-auto performs archive. This command represents the complete project-level regression suite, not only the Testing section tasks for an individual change. When a coverage declaration is present, this command also enforces the minimum coverage threshold, so insufficient coverage is a blocking workflow failure rather than advisory output.
+    unavailable_behavior: If the command cannot run because required dependencies, services, credentials, fixtures, or other test conditions are unavailable, review or auto archive is blocked until a human prepares the environment or explicitly provides the missing evidence.

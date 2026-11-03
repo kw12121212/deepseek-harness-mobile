@@ -1,0 +1,39 @@
+schema: strict-spec-driven/harness/v1
+schema_version: 1
+artifact_type: harness
+schema_file: templates/strict-spec-driven/schemas/harness.yaml
+harness:
+  id: default
+  description: Replace the sample values with this repository's harness environments and components.
+  environments:
+    development:
+      kind: development
+      description: Local development environment.
+      components:
+        app:
+          type: backend
+          description: Replace with the primary local component for this project.
+          working_directory: "."
+          depends_on: []
+          environment:
+            required: []
+            optional: []
+          urls: []
+          ports: []
+          readiness:
+            type: manual
+            timeout_seconds: 60
+            interval_seconds: 5
+            notes:
+              - Replace manual readiness with HTTP or TCP readiness when known.
+          operations:
+            start:
+              mode: manual
+            stop:
+              mode: manual
+            status:
+              mode: manual
+            logs:
+              mode: manual
+          evidence_labels: []
+          unavailable_conditions: []

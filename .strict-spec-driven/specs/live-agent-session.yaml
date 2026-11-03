@@ -1,0 +1,40 @@
+schema: strict-spec-driven/main-spec/v1
+schema_version: 1
+artifact_type: main_spec
+schema_file: templates/strict-spec-driven/schemas/main-spec.yaml
+spec:
+  id: live-agent-session
+  title: Agent 执行的实时呈现
+requirements:
+  realtime-execution:
+    strength: MUST
+    statement: 会话界面必须实时呈现 Harness 的真实执行过程——思考、写入、工具调用、回复内容与运行时长，而不是只显示等待动画。
+    scenarios:
+      live-progress:
+        - GIVEN: 一个 Harness 任务正在运行
+        - WHEN: 用户停留在会话界面
+        - THEN: 思考、写入、工具调用、回复内容与已运行时长随执行实时出现
+  todos-and-context:
+    strength: SHOULD
+    statement: 会话应汇总任务待办（已完成、进行中、待处理），并以上下文仪表显示占用比例，可展开查看 System prompt、Tools 与 Messages 的占用明细。
+    scenarios:
+      overview-visible:
+        - GIVEN: 长任务运行中
+        - WHEN: 用户查看会话页并展开上下文仪表
+        - THEN: 待办状态汇总与上下文占用比例可见，且能看到各部分占用明细
+  streaming-reveal:
+    strength: SHOULD
+    statement: 助手回复应逐字符显示；流式部分回复与一次性完成的回复一致，最新字符带半透明淡入效果。
+    scenarios:
+      char-reveal:
+        - GIVEN: 助手回复正在生成
+        - WHEN: 回复内容到达客户端
+        - THEN: 内容逐字符出现且最新字符半透明淡入
+  background-notification:
+    strength: SHOULD
+    statement: 应用退到后台后，系统通知应持续显示 Harness 任务运行状态，便于随时返回会话。
+    scenarios:
+      background-notify:
+        - GIVEN: 后台任务在运行且应用退到后台
+        - WHEN: 用户查看系统通知
+        - THEN: 通知显示任务正在运行，可从通知回到会话

@@ -1,0 +1,32 @@
+schema: strict-spec-driven/main-spec/v1
+schema_version: 1
+artifact_type: main_spec
+schema_file: templates/strict-spec-driven/schemas/main-spec.yaml
+spec:
+  id: host-interactions
+  title: 审批与前台问答
+requirements:
+  approval-card:
+    strength: MUST
+    statement: 应用必须呈现原生审批请求卡片，并允许用户允许或拒绝该请求。
+    scenarios:
+      approve-or-deny:
+        - GIVEN: Host 发出待审批请求
+        - WHEN: 审批卡片出现且用户选择允许或拒绝
+        - THEN: 选择被送回所属 Host 任务，卡片离开待处理状态
+  foreground-questions:
+    strength: MUST
+    statement: 应用必须支持单选、多选与自由文本问答，多题一次提交、计划评审、限时延续处理、取消，以及各问题独立的草稿。
+    scenarios:
+      question-submit:
+        - GIVEN: Host 提出一组前台问题
+        - WHEN: 用户逐题作答并提交
+        - THEN: 答案按题送达 Host，各题草稿互不影响
+  cross-session-attention:
+    strength: MUST
+    statement: 存在待交互的其他会话时必须给出提醒；子代理的审批与问答路由到对应的只读子会话页。
+    scenarios:
+      child-routing:
+        - GIVEN: 子代理产生待审批或待答问题
+        - WHEN: 用户从跨会话提醒进入对应会话
+        - THEN: 以只读方式看到子会话上下文并完成审批或作答

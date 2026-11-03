@@ -1,0 +1,40 @@
+schema: strict-spec-driven/main-spec/v1
+schema_version: 1
+artifact_type: main_spec
+schema_file: templates/strict-spec-driven/schemas/main-spec.yaml
+spec:
+  id: bridge-private-transport
+  title: dshbridge 私有传输边界
+requirements:
+  allowlist-forwarding:
+    strength: MUST
+    statement: dshbridge 必须只转发显式白名单内的 RPC、流与导出；已知与未知的未认证端点一律返回空 404，绝不提供 HTML、脚本、原生管理接口或健康发现页。
+    scenarios:
+      unknown-endpoint-404:
+        - GIVEN: 未携带设备凭据的请求到达任意入口
+        - WHEN: 请求已知或未知端点
+        - THEN: 收到空 404，请求不会到达上游 dsh
+      allowlisted-forward:
+        - GIVEN: 已配对设备携带有效设备凭据
+        - WHEN: 请求白名单内的 RPC 或打开流
+        - THEN: 请求以原生 dsh 协议格式转发到上游并返回响应
+  pairing-lifecycle:
+    strength: MUST
+    statement: 配对码必须一次性且短时效，设备凭据独立于上游 dsh 凭据；撤销对新请求立即生效，已建立的空闲连接在周期检查后被关闭。
+    scenarios:
+      pair-once:
+        - GIVEN: 生成了一个配对码
+        - WHEN: 该配对码被使用一次后再次尝试使用
+        - THEN: 再次使用被拒绝，必须用新生成的配对码重新配对
+      revoke-immediate:
+        - GIVEN: 设备已配对且连接活跃
+        - WHEN: 管理员撤销该设备
+        - THEN: 该设备的新请求立即被拒，既有空闲连接随后被断开
+  no-plaintext-fallback:
+    strength: MUST
+    statement: 私有连接失败时绝不回落到原生 dsh 路由；公网监听必须经 TLS，明文公网监听被拒绝；忘记私有配置即凭据失效，需重新配对。
+    scenarios:
+      no-fallback:
+        - GIVEN: 设备处于私有服务模式且连接失败
+        - WHEN: 应用尝试重连
+        - THEN: 只重试私有链路，绝不改用原生 dsh 路由或降级为明文

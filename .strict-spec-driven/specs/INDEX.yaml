@@ -1,0 +1,20 @@
+schema: strict-spec-driven/spec-index/v1
+schema_version: 1
+artifact_type: spec_index
+schema_file: ../schemas/spec-index.yaml
+specs:
+  - id: bridge-private-transport
+    title: dshbridge 私有传输边界
+    path: .strict-spec-driven/specs/bridge-private-transport.yaml
+  - id: host-interactions
+    title: 审批与前台问答
+    path: .strict-spec-driven/specs/host-interactions.yaml
+  - id: live-agent-session
+    title: Agent 执行的实时呈现
+    path: .strict-spec-driven/specs/live-agent-session.yaml
+  - id: server-connection
+    title: 服务器连接与两种连接模式
+    path: .strict-spec-driven/specs/server-connection.yaml
+  - id: session-management
+    title: 会话与模型管理
+    path: .strict-spec-driven/specs/session-management.yaml
