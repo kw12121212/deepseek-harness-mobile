@@ -33,7 +33,7 @@ intake_questions:
     question: 在 tailscale serve 暴露 dshbridge 后，是否在设备 token 体系之上再叠加 Tailscale WhoIs 白名单校验
     context: private-content-assistant 无自有认证、全靠 WhoIs 白名单 + Host/来源校验；本项目 bridge 已有配对/设备 token/撤销体系，且经 serve 转发后对端恒为 127.0.0.1、真实地址在 X-Forwarded-For
     impact: 决定 bridge http/stream 入口的校验改动量与运维配置项（allowed_logins/allowed_tags），影响里程碑里 serve 暴露变更的规模
-    recommendation: 默认不叠加：设备 token 仍是唯一应用层凭据，tailnet 边界交给 ACL + serve；若安全评审发现 serve 转发削弱了现有凭据校验的输入（如日志取址），只做针对性修正，不引入第二套身份体系
+    recommendation: 已确认采纳（用户 2026-11-03）：不叠加 WhoIs 白名单层；设备 token 仍是唯一应用层凭据，tailnet 边界交给 ACL + serve，评审发现输入被削弱时只做针对性修正
 planned_changes: {}
 dependencies:
   - ../private-content-assistant 与 ../mobile-manage 的 tstunnel/loopback/构建脚本已真机验证，可复制而非重写
@@ -47,4 +47,5 @@ status: proposed
 notes:
   - 安全铁律（沿自 private-content-assistant 的 security-boundary）：服务只能经 tailscale serve --https 暴露（它会写 X-Forwarded-For）；禁止 serve --tcp、--tls-terminated-tcp、Funnel、ssh -L 等不写该头的转发，否则远端请求会被当作 loopback 本机请求绕过身份校验
   - token 参数语义按参考项目落地：tstunnel NewNode(hostname, dir, authKey)，authKey 即 token；节点用专用 tag（如 tag:dsh-mobile），与其它项目的 tag 分开可单独吊销
+  - 决策记录：intake bridge-whois-layer 已于 2026-11-03 由用户确认采纳推荐——不叠加 WhoIs 白名单层，设备 token 是唯一应用层凭据，tailnet 边界由 ACL + serve 承担；安全评审若发现 serve 转发削弱现有凭据校验的输入，只做针对性修正，不引入第二套身份体系。该决策对 bridge-tailnet-serve 及后续变更直接生效。
 details: 落地顺序：host 侧 serve 暴露先行（否则 spike 无靶子），再 app 侧 spike 验证 tagged 入网与连通，通过后集成 TunnelManager/设置页，随后补 token 参数化连接资料；dsh 版本锁定与上述并行，最后做安全与功能完整性评审收口。app/ 与 bridge/ 仍按仓库分工独立提交；UI 工作按 AGENTS.md 交给 agy 出稿、父代理真机验收。
