@@ -7,6 +7,8 @@ dshbridge 的命令与部署限制见 [bridge/README.md](bridge/README.md)。
 ## 提交
 
 - Conventional Commits，英文 subject，单行祈使句并带范围，例：`refactor(mobile)!: ...`。
+- 分支策略：主开发分支为 `dev`，产品分支为 `main`；日常开发一律落在 `dev`，
+  正式发布才由 `dev` 合并到 `main`。
 - 按主题拆提交，`docs/`、`bridge/`、`app/` 三类互不依赖源码，可以分别提交且各自可构建。
 - 包名与 applicationId 是 `app.deepseek.harness.mobile`（2026-10-10 从 `cool.rin.deepseekremote` 改名，
   属 breaking change：对老安装是另一个应用身份）。
