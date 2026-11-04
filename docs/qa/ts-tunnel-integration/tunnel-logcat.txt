@@ -1,0 +1,4 @@
+11-03 15:18:50.891  5575  5640 I DshTunnel: proxy.listening 127.0.0.1:43415 -> https://gamepc-1.tail89569c.ts.net:3091
+11-03 15:18:50.896  5575  5640 I DshTunnel: tunnel.connected node=dsh-emu-app proxy=127.0.0.1:43415
+11-03 15:18:51.255  5575  5640 W HarnessArchive: Caused by: java.net.ProtocolException: Expected HTTP 101 response but was '404 Not Found'
+11-03 15:18:51.256  5575  5649 W HarnessStream: Caused by: java.net.ProtocolException: Expected HTTP 101 response but was '404 Not Found'
