@@ -30,3 +30,7 @@ signing/
 bridge/dist/
 bridge/state/
 .qa-evidence/
+
+# tstunnel AAR build output (built via tstunnel/build-aar.sh, not committed)
+app/libs/
+tstunnel/.gobin/
