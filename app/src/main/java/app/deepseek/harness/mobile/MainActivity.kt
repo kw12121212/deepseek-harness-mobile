@@ -296,6 +296,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        app.deepseek.harness.mobile.tunnel.TunnelIntegration.init(this)
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).let { prefs ->
             languagePreference = AppLanguagePreference.fromStored(prefs.getString(PREF_LANGUAGE, null))
             appLanguage = languagePreference.resolve(systemLanguageTag())
@@ -335,6 +336,13 @@ class MainActivity : ComponentActivity() {
         }
         configureWindow()
         setContentView(buildScreen())
+        // 隧道 bootstrap：当前连接目标即隧道服务器地址时，后台拉起隧道（ensureUp 最长
+        // 约 60s，绝不在主线程；映射翻转后既有重连循环自然经回环代理出站）。
+        serverUrl?.let { saved ->
+            worker.execute {
+                runCatching { app.deepseek.harness.mobile.tunnel.TunnelIntegration.ensureUpFor(saved) }
+            }
+        }
         requestNotificationPermissionIfNeeded()
         configureAuthWebView()
         configureBackNavigation()
@@ -2430,6 +2438,9 @@ class MainActivity : ComponentActivity() {
         addSettingsRow(R.drawable.ic_settings_outline, tr("Web 设置", "Web Settings")) {
             serverUrl?.let { openExternal(Uri.parse(it)) }
         }
+        addSettingsRow(R.drawable.ic_settings_outline, tr("隧道 (Tailscale)", "Tunnel (Tailscale)")) {
+            showTunnelSettings()
+        }
         popup = PopupWindow(panel, dp(284), WRAP, true).apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             isOutsideTouchable = true
@@ -2682,8 +2693,8 @@ class MainActivity : ComponentActivity() {
             setPadding(dp(24), dp(6), dp(24), dp(10))
             addView(TextView(this@MainActivity).apply {
                 text = tr(
-                    "适配 dsh 0.2.0-rc.2。输入服务器地址，或粘贴 dsh 提供的含 token 登录链接。公网地址必须使用 HTTPS；HTTP 仅允许私有内网地址。\n\n示例：https://harness.example.com 或 http://192.168.1.50:3000\n连接成功后仍可在设置中更换。",
-                    "For dsh 0.2.0-rc.2. Enter the server address or paste the dsh launch link containing a token. Public addresses must use HTTPS; HTTP is only allowed for private network addresses.\n\nExamples: https://harness.example.com or http://192.168.1.50:3000\nYou can change it later in Settings.",
+                    "适配 dsh $COMPATIBLE_DSH_VERSION。输入服务器地址，或粘贴 dsh 提供的含 token 登录链接。公网地址必须使用 HTTPS；HTTP 仅允许私有内网地址。\n\n示例：https://harness.example.com 或 http://192.168.1.50:3000\n连接成功后仍可在设置中更换。",
+                    "For dsh $COMPATIBLE_DSH_VERSION. Enter the server address or paste the dsh launch link containing a token. Public addresses must use HTTPS; HTTP is only allowed for private network addresses.\n\nExamples: https://harness.example.com or http://192.168.1.50:3000\nYou can change it later in Settings.",
                 )
                 textSize = 13f
                 setTextColor(COLOR_MUTED)
@@ -2740,6 +2751,24 @@ class MainActivity : ComponentActivity() {
                     val candidateApi = HarnessApi(baseUrl = { candidate.origin }, accessToken = { root -> oauth.accessToken(root) })
                     try {
                         HarnessAuthentication.exchange(candidate, oauth.accessToken(candidate.origin))
+                        when (val gate = dshVersionGateDecision(fetchDshServerVersion(candidate.origin, oauth.accessToken(candidate.origin)))) {
+                            is DshVersionGate.Reject -> {
+                                mainHandler.post {
+                                    if (!admission.accepts(connectionEpoch)) return@post
+                                    connectButton.isEnabled = true
+                                    connectButton.alpha = 1f
+                                    addressInput.isEnabled = true
+                                    errorView.setTextColor(COLOR_RED)
+                                    errorView.text = if (gate.upstreamVersion == null) {
+                                        tr("无法确定服务器 dsh 版本，按不兼容处理：本应用适配 dsh $COMPATIBLE_DSH_VERSION。", "Unable to determine the server dsh version; treated as incompatible: this app is built for dsh $COMPATIBLE_DSH_VERSION.")
+                                    } else {
+                                        tr("服务器 dsh 版本为 ${gate.upstreamVersion}，本应用适配 $COMPATIBLE_DSH_VERSION；升级适配需要应用更新。", "The server runs dsh ${gate.upstreamVersion}, while this app is built for dsh $COMPATIBLE_DSH_VERSION; adapting to a new version requires an app update.")
+                                    }
+                                }
+                                return@execute
+                            }
+                            DshVersionGate.ProceedToAuthentication, DshVersionGate.Proceed -> {}
+                        }
                         candidateApi.sessions()
                         mainHandler.post {
                             if (!admission.accepts(connectionEpoch)) return@post
@@ -2771,6 +2800,113 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+        dialog.show()
+    }
+
+    /** 隧道设置（tailscale-private-transport：状态/节点名/服务器地址/重输 key/重启）。 */
+    private fun showTunnelSettings() {
+        val manager = app.deepseek.harness.mobile.tunnel.TunnelIntegration.manager()
+        val statusView = TextView(this).apply {
+            textSize = 13f
+            setTextColor(COLOR_MUTED)
+            setPadding(0, 0, 0, dp(10))
+        }
+        fun renderStatus(state: app.deepseek.harness.mobile.tunnel.TunnelState?) {
+            statusView.text = when (state) {
+                is app.deepseek.harness.mobile.tunnel.TunnelState.Connected -> tr("已连接：节点 ${state.nodeName}", "Connected: node ${state.nodeName}")
+                is app.deepseek.harness.mobile.tunnel.TunnelState.Starting -> tr("连接中…", "Starting…")
+                is app.deepseek.harness.mobile.tunnel.TunnelState.NeedsKey -> tr("需要 auth key：未保存 key 且本机无已注册节点", "Auth key required: no saved key and no registered node on this device")
+                is app.deepseek.harness.mobile.tunnel.TunnelState.Failed -> tr("失败：${state.message}", "Failed: ${state.message}")
+                null -> tr("未启用", "Not enabled")
+            }
+        }
+        renderStatus(app.deepseek.harness.mobile.tunnel.TunnelIntegration.state())
+        val serverInput = android.widget.EditText(this).apply {
+            hint = tr("服务器地址（host 侧 serve 暴露，如 https://node.tail…ts.net:3091）", "Server address (host serve endpoint, e.g. https://node.tail…ts.net:3091)")
+            setText(manager.config.serverBase())
+            textSize = 13f
+            setSingleLine(true)
+        }
+        val keyInput = android.widget.EditText(this).apply {
+            hint = tr("tailscale tagged auth key（tskey-…；已注册后可留空）", "Tailscale tagged auth key (tskey-…; leave empty once registered)")
+            textSize = 13f
+            setSingleLine(true)
+            // key 不回显（ts-token-profile 安全约束）；连接资料携带 tailscale 字段时自动写入，无需手输
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            isSaveEnabled = false
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        }
+        val errorView = TextView(this).apply {
+            textSize = 13f
+            setTextColor(COLOR_RED)
+            visibility = View.GONE
+        }
+        val applyButton = serverDialogAction(tr("保存并连接", "Save and connect"), COLOR_BLUE)
+        val restartButton = serverDialogAction(tr("重启隧道", "Restart tunnel"), COLOR_MUTED)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(6), dp(24), dp(10))
+            addView(statusView, LinearLayout.LayoutParams(MATCH, WRAP))
+            addView(serverInput, LinearLayout.LayoutParams(MATCH, WRAP))
+            addView(keyInput, LinearLayout.LayoutParams(MATCH, WRAP))
+            addView(errorView, LinearLayout.LayoutParams(MATCH, WRAP))
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                addView(restartButton, LinearLayout.LayoutParams(WRAP, dp(48)).apply { marginEnd = dp(2) })
+                addView(applyButton, LinearLayout.LayoutParams(WRAP, dp(48)))
+            }, LinearLayout.LayoutParams(MATCH, WRAP))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setCustomTitle(TextView(this).apply {
+                text = tr("隧道 (Tailscale)", "Tunnel (Tailscale)")
+                textSize = 20f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(COLOR_TEXT)
+                setPadding(dp(24), dp(22), dp(24), dp(8))
+            })
+            .setView(content)
+            .setNegativeButton(tr("关闭", "Close"), null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.window?.setBackgroundDrawable(rounded(COLOR_COMPOSER, 18f))
+            fun runTunnel(action: () -> app.deepseek.harness.mobile.tunnel.TunnelState) {
+                applyButton.isEnabled = false
+                applyButton.alpha = 0.45f
+                restartButton.isEnabled = false
+                errorView.visibility = View.GONE
+                worker.execute {
+                    val result = runCatching(action).getOrElse { app.deepseek.harness.mobile.tunnel.TunnelState.Failed(it.message ?: "error") }
+                    mainHandler.post {
+                        renderStatus(result)
+                        applyButton.isEnabled = true
+                        applyButton.alpha = 1f
+                        restartButton.isEnabled = true
+                        if (result is app.deepseek.harness.mobile.tunnel.TunnelState.Failed) {
+                            errorView.text = result.message
+                            errorView.visibility = View.VISIBLE
+                        }
+                    }
+                }
+            }
+            applyButton.setOnClickListener {
+                val address = serverInput.text.toString().trim()
+                if (address.isNotEmpty()) {
+                    val normalized = runCatching { ServerConfig.normalize(address) }.getOrElse {
+                        errorView.text = it.message
+                        errorView.visibility = View.VISIBLE
+                        return@setOnClickListener
+                    }
+                    manager.config.setServerBase(normalized)
+                } else {
+                    manager.config.setServerBase("")
+                }
+                val key = keyInput.text.toString()
+                runTunnel { if (key.isNotBlank()) manager.connectWithKey(key) else manager.ensureUp() }
+                keyInput.setText("")
+            }
+            restartButton.setOnClickListener { runTunnel { manager.restart() } }
         }
         dialog.show()
     }

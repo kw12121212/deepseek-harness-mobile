@@ -20,7 +20,7 @@ internal object HarnessAuthentication {
     /** Only index authentication receives the transient launch token. */
     fun exchange(connection: ServerConnection, accessToken: String? = null) {
         val token = connection.launchToken ?: return
-        val request = URL("${connection.origin}/?token=${URLEncoder.encode(token, "UTF-8")}").openConnection() as HttpURLConnection
+        val request = URL(app.deepseek.harness.mobile.tunnel.TunnelRoutes.rewrite("${connection.origin}/?token=${URLEncoder.encode(token, "UTF-8")}")).openConnection() as HttpURLConnection
         request.instanceFollowRedirects = false
         request.connectTimeout = 15000
         request.readTimeout = 25000

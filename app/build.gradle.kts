@@ -17,6 +17,14 @@ android {
         targetSdk = 36
         versionCode = 8
         versionName = "1.1.2"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    packaging {
+        // gomobile AAR 的 libgojni.so 需在安装时解出（instrumentation 上下文不能从
+        // 未解压 APK 直载 .so，api31 实测 dlopen "not found"）。AAR 已是主依赖，
+        // 主 APK 与 androidTest APK 的全部 .so 都由此在安装时解出。
+        jniLibs { useLegacyPackaging = true }
     }
 
     buildFeatures {
@@ -78,4 +86,11 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    androidTestImplementation("junit:junit:4.13.2")
+    // tstunnel AAR 由 tstunnel/build-aar.sh 产出（不入库）：隧道是主代码依赖（GoLayer），
+    // 构建前需先跑该脚本（与 Android SDK 同类的本机前置）。spike 仪器测试由参数驱动，
+    // 缺参数自动跳过。
+    implementation(files("libs/tstunnel.aar"))
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:monitor:1.7.2")
 }

@@ -16,7 +16,9 @@ internal class BridgeAuthenticationRequired : HarnessApi.AuthenticationRequired(
 internal class BridgeUpstreamUnavailable : IOException("The server is reachable but its backend is unavailable")
 internal val harnessStreamClient: OkHttpClient by lazy { OkHttpClient.Builder().readTimeout(0,TimeUnit.MILLISECONDS).pingInterval(20,TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build() }
 internal fun transportRequest(address: String,method: String,body: String?,headers: Map<String,String>,readTimeout: Int = 60000): HttpURLConnection {
- return (URL(address).openConnection() as HttpURLConnection).apply {
+ // 隧道在役且目标是隧道服务器地址时改写到回环代理（单一改写点；Origin 头保持真实值）。
+ val routed = app.deepseek.harness.mobile.tunnel.TunnelRoutes.rewrite(address)
+ return (URL(routed).openConnection() as HttpURLConnection).apply {
   requestMethod=method;instanceFollowRedirects=false;connectTimeout=15000;this.readTimeout=readTimeout
   headers.forEach { (key,value)->setRequestProperty(key,value) }
   if(body!=null){doOutput=true;setRequestProperty("Content-Type","application/json; charset=utf-8");val bytes=body.toByteArray(Charsets.UTF_8);setFixedLengthStreamingMode(bytes.size);outputStream.use{it.write(bytes)}}

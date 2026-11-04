@@ -18,7 +18,7 @@ internal class DirectHarnessTransport(private val root: String,private val autho
   try {check(method,c.responseCode,c.getHeaderField("Location"),c.getHeaderField("WWW-Authenticate"));if(!c.contentType.orEmpty().lowercase().contains("application/json"))throw HarnessApi.AuthenticationRequired(false);return transportJSON(c)} finally{c.disconnect()}
  }
  override fun openMux(listener: WebSocketListener): WebSocket {
-  val request=Request.Builder().url(root.replaceFirst("https://","wss://").replaceFirst("http://","ws://")+"/api/remote.mux").header("Origin",root)
+  val request=Request.Builder().url(app.deepseek.harness.mobile.tunnel.TunnelRoutes.rewrite(root).replaceFirst("https://","wss://").replaceFirst("http://","ws://")+"/api/remote.mux").header("Origin",root)
   headers().forEach{(k,v)->request.header(k,v)};return harnessStreamClient.newWebSocket(request.build(),listener)
  }
  override fun streamFailure(response: Response?,cause: Throwable): IOException = if(response?.code in 300..399 || response?.code==401 || response?.code==403) HarnessApi.AuthenticationRequired(isAccessChallenge(response?.code?:0,response?.header("Location"),response?.header("WWW-Authenticate"))) else IOException("Harness stream disconnected",cause)

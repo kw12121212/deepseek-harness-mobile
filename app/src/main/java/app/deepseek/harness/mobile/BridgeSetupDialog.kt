@@ -86,6 +86,14 @@ internal class BridgeSetupDialog(
    listOf(configInput,codeInput,nameInput,privateButton,directButton,pairButton).forEach{it.isEnabled=false}
    pairButton.text=text("正在配对…","Pairing…");status.text=text("正在验证设备授权…","Verifying device access…");status.setTextColor(palette.muted);status.visibility=View.VISIBLE
    worker.execute{
+    // tailscale 参数随资料导入即写入隧道配置并先行入网（token 为参数，非交互登录）；
+    // 未达 Connected 仍继续 pair——失败按既有文案呈现，隧道状态以设置页为准。
+    config.tailscale?.let { ts ->
+     runCatching {
+      ts.applyTo(app.deepseek.harness.mobile.tunnel.TunnelIntegration.manager().config)
+      app.deepseek.harness.mobile.tunnel.TunnelIntegration.ensureUpFor(ts.origin)
+     }
+    }
     val result=runCatching{BridgePairingClient().pair(config.origin,config.pairPath,code,name)}
     main.post{
      if(!admission.accepts(currentGeneration()))return@post
