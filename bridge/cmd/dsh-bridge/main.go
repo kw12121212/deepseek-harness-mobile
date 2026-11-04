@@ -5,6 +5,7 @@ import (
 	"app.deepseek.harness/bridge/internal/config"
 	"app.deepseek.harness/bridge/internal/gateway"
 	"app.deepseek.harness/bridge/internal/upstream"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -108,6 +109,9 @@ func run(args []string) error {
 		if e != nil {
 			return e
 		}
+		if e = requireCompatibleUpstream(up); e != nil {
+			return e
+		}
 		g := gateway.New(c, store, up)
 		server := &http.Server{Addr: c.Listen, Handler: g, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 		if *cert != "" {
@@ -143,6 +147,22 @@ func validateServe(c config.Config, cert, key string, proxy bool) error {
 	}
 	if strings.HasPrefix(c.PublicOrigin, "https://") && !proxy {
 		return fmt.Errorf("HTTPS origin requires TLS or explicit loopback proxy mode")
+	}
+	return nil
+}
+
+// requireCompatibleUpstream enforces the pinned dsh version contract before
+// the bridge opens any pairing or forwarding surface. Unknown upstreams are
+// rejected too (fail closed): an undetectable version is not a compatible one.
+func requireCompatibleUpstream(up *upstream.Client) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	version, e := up.ServerVersion(ctx)
+	if e != nil {
+		return fmt.Errorf("unable to determine upstream dsh version (%v); refusing to start: this bridge is pinned to dsh %s, moving to another version requires an explicit change and re-validation", e, upstream.CompatibleDSHVersion)
+	}
+	if version != upstream.CompatibleDSHVersion {
+		return fmt.Errorf("upstream dsh version %s is not the pinned compatible version %s; refusing to start (moving to another version requires an explicit change and re-validation)", version, upstream.CompatibleDSHVersion)
 	}
 	return nil
 }

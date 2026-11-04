@@ -4,7 +4,7 @@
 
 The component name is **dshbridge**; the existing CLI/executable name is `dsh-bridge`, with sources under `bridge/cmd/dsh-bridge/`. Command examples below use that existing name. See [server roles and terminology](../docs/architecture/server-roles.md).
 
-dshbridge preserves dsh 0.2.0-rc.2 message formats. Random routes are stable dshbridge deployment configuration, not an authentication substitute. Its pairing codes/device tokens are separate from the native dsh launch token/Cookie. The dshbridge outer protocol version (`protocolVersion: 1`) is separate from the native dsh software version.
+dshbridge preserves dsh 0.2.0-rc.2 message formats, and enforces that contract: `serve` probes the upstream landing page (`__DSH_BOOT__` → `release.version`) before opening any pairing or forwarding surface and refuses to start unless the version equals the pinned `CompatibleDSHVersion` constant (`0.2.0-rc.2`); an undetectable version is rejected too (fail closed). Moving to another dsh version — including rc→rc — means an explicit change, updating the constant, and re-validation, the same policy as the RPC allowlist. Random routes are stable dshbridge deployment configuration, not an authentication substitute. Its pairing codes/device tokens are separate from the native dsh launch token/Cookie. The dshbridge outer protocol version (`protocolVersion: 1`) is separate from the native dsh software version.
 
 ## Addresses and credentials
 
@@ -82,6 +82,43 @@ For an already authenticated Desktop Host, use `dsh-bridge serve --state DIR --d
 A fixed Cookie does not refresh itself. If Desktop invalidates it, requests fail and keep presenting that Cookie until the operator replaces it and restarts dshbridge. There is no anonymous fallback. Keep the native dsh listener on loopback and restart only dshbridge when changing its upstream authentication.
 
 The interaction allowlist includes `$events/result`, `userQuestions/answer`, `$events` and `userQuestions/attachWait` alongside the existing session streams. It does not expose native administration or a pending-events discovery endpoint.
+
+## Tailnet 私有暴露（tailscale serve）
+
+公网域名、证书与反代之外，dshbridge 还可以经用户个人 tailnet 私有直达：dshbridge 继续只监听回环，
+由同主机的 `tailscale serve --https` 反向代理承担 TLS 与 tailnet 准入。serve 形态运行：
+
+```sh
+dsh-bridge serve --state DIR --behind-tls-proxy \
+  --public-origin https://<节点 tailnet 域名>:<serve端口> --dsh-token-file PRIVATE_FILE
+```
+
+配置 Serve 用仓库脚本（serve/status/reset 三子命令；`--state` 或 `DSHBRIDGE_STATE` 指向状态目录，
+`DSHBRIDGE_SERVE_PORT` 可覆盖 tailnet 侧端口，默认与 `config.json` 的 `listen` 端口一致）：
+
+```sh
+bash bridge/scripts/tailscale-serve.sh --state DIR serve
+bash bridge/scripts/tailscale-serve.sh --state DIR status
+bash bridge/scripts/tailscale-serve.sh --state DIR reset
+```
+
+脚本要求 python3、curl 与已登录的 tailscale CLI；Windows host 在 Git Bash 或 WSL 下运行。后端存活检查
+接受任意 HTTP 状态码（含 404）——dshbridge 没有健康发现页，任何 HTTP 应答都证明监听进程存在。
+
+**安全铁律：只能经 `tailscale serve --https` 暴露。** `serve --tcp`、`--tls-terminated-tcp`、Funnel、
+`ssh -L` 等转发不写 `X-Forwarded-For`，远端请求的对端会呈现为 127.0.0.1，被当作本机请求，等于绕过
+传输边界假设。脚本在写入前解析 `tailscale serve status --json`：目标端口被这些形态或任何其他服务占用时
+拒绝继续，只有空闲端口或确属本服务的配置才会写入；reset 同样只移除确属本服务的配置。谁能连上端口由
+tailnet ACL 决定，脚本不修改 ACL；设备 token 仍是唯一应用层凭据（不叠加 WhoIs 白名单层）。
+
+经 serve 转发后连接对端恒为 127.0.0.1、真实 tailnet 地址在 `X-Forwarded-For`。对该形态的核对结论：
+RPC/stream/export 的凭据校验按设备 Bearer token 进行，与来源地址无关，行为不变；bridge 不记录地址
+日志；唯一的差异是配对限流——`pair` 按 RemoteAddr 主机分桶，经 serve 后所有来源共享 127.0.0.1 一个桶，
+即全局 10 次配对请求/分钟。该限制比公网形态更严格而非更宽松，多台设备同分钟密集配对可能触发 429
+`rate-limited`，稍候重试即可。
+
+脚本行为的确定性回归（假命令，不触碰真实 tailnet）：`bash bridge/scripts/test-tailscale-serve.sh`。
+真机 serve 暴露与 WSS stream 转发的验证证据见 [docs/qa/tailnet-serve/](../docs/qa/tailnet-serve/)。
 
 ## 改动允许列表后必须重新部署
 
