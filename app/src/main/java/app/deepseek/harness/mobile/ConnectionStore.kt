@@ -5,6 +5,8 @@ import android.security.keystore.KeyProperties
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.KeyStore
 import java.security.MessageDigest
 import javax.crypto.Cipher
@@ -36,7 +38,7 @@ internal class ConnectionStore(private val directory:File,private val codec:Cred
    is SavedConnection.Bridge->{val json=connection.profile.json().put("schemaVersion",1);val cipher=codec.encrypt(json.toString().toByteArray(Charsets.UTF_8));atomic(file(connection.origin,"mode"),"bridge".toByteArray());atomic(file(connection.origin,"enc"),cipher)}}
  }
  fun remove(origin:String)= synchronized(lock) {directory.mkdirs();atomic(file(origin,"mode"),"forgotten".toByteArray());file(origin,"enc").delete();Unit}
- private fun atomic(destination:File,bytes:ByteArray) {val tmp=File.createTempFile("profile-",".tmp",directory);try{FileOutputStream(tmp).use{it.write(bytes);it.fd.sync()};check(tmp.renameTo(destination)){"Could not save connection"}}finally{tmp.delete()}}
+ private fun atomic(destination:File,bytes:ByteArray) {val tmp=File.createTempFile("profile-",".tmp",directory);try{FileOutputStream(tmp).use{it.write(bytes);it.fd.sync()};try{Files.move(tmp.toPath(),destination.toPath(),StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE)}catch(e:java.io.IOException){throw IllegalStateException("Could not save connection",e)}}finally{tmp.delete()}}
  companion object {private val lock=Any();fun forContext(context:Context)=ConnectionStore(File(context.noBackupFilesDir,"connections"),KeystoreCodec())}
 }
 private class KeystoreCodec:CredentialCodec {
