@@ -1,0 +1,19 @@
+schema: strict-spec-driven/lesson/v1
+schema_version: 1
+artifact_type: lesson
+schema_file: templates/strict-spec-driven/schemas/lesson.yaml
+lesson:
+  id: gomobile-aar-androidtest-uselegacypackaging-340297
+  title: gomobile AAR 进 androidTest 必须 useLegacyPackaging
+category: tooling
+status: active
+created_at: '2026-11-03T14:56:34.985Z'
+updated_at: '2026-11-03T14:56:34.985Z'
+context: 'ts-embed-spike 首次运行仪器测试即 UnsatisfiedLinkError: dlopen libgojni.so not found——AAR 已含全部 4 ABI 且已打进 test APK，但 AGP 默认 jniLibs.useLegacyPackaging=false（.so 留在 APK 内不解出），instrumentation 上下文的 System.loadLibrary 不能从未解压 APK 直载 .so（api31 实测）。'
+observation: 设置 packaging { jniLibs { useLegacyPackaging = true } } 后同一 APK 安装即可加载；主 APK 无 .so 不受该模块级开关影响。
+takeaway: androidTest 源集消费 gomobile AAR（或任何带原生库的 AAR）时，gradle 需开 jniLibs.useLegacyPackaging=true，否则仪器测试必在 dlopen 处失败；另外 Windows host 传以 / 开头的 adb shell 参数要整条加引号 + MSYS_NO_PATHCONV=1，否则 Git Bash 把它改写成 Windows 路径。
+applies_when: 在 androidTest 中引入含原生库的 AAR（gomobile/其他），或在 Git Bash 下向 adb shell 传递绝对路径形态参数时
+occurrences:
+  - origin: ts-embed-spike
+    date: '2026-11-03'
+    evidence: app/build.gradle.kts packaging 块注释；docs/qa/ts-embed-spike/validation.md「途中排除的两个真实问题」；runs/tailnet-serve-qa/spike-instrument.log（本地）

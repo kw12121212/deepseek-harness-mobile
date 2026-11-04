@@ -1,0 +1,51 @@
+schema: strict-spec-driven/task-list/v2
+schema_version: 2
+artifact_type: task_list
+schema_file: templates/strict-spec-driven/schemas/task-list.yaml
+change: ts-embed-spike
+sections:
+  Implementation:
+    impl-tstunnel-module:
+      text: 复制蓝本建仓库根 tstunnel/ Go 模块：tstunnel.go（hostinfo app 名改 dsh-tstunnel）、interfaces.go、defaultroute_android.go、defaultroute_other.go、tstunnel_test.go、go.mod（module app.deepseek.harness/tstunnel，钉 tailscale.com v1.94.1 + x/mobile tool 指令，go 1.26）。
+      status: complete
+    impl-aar-build-script:
+      text: 新建 tstunnel/build-aar.sh（适配蓝本：GOBIN 本地安装钉版 gomobile/gobind、-target android -androidapi 26、16KB page size ldflags、NDK llvm-strip 剥离重打包、输出 app/libs/tstunnel.aar、默认 NDK 28.2.13676358 可参数覆盖）；.gitignore 增 app/libs/。
+      status: complete
+    impl-build-aar:
+      text: 在本机实际执行 build-aar.sh 产出 tstunnel.aar（gomobile 版本钉死、产物不入库），报告体积。
+      status: complete
+      command: cd /c/zw/Code/deepseek-harness-mobile/tstunnel && bash build-aar.sh 28.2.13676358
+    impl-spike-test:
+      text: app/src/androidTest 新增 TstunnelSpikeTest：instrumentation 参数（authkey/origin/pairPath/pairingCode）缺失 assumeTrue 跳过；注入网卡快照（NetworkInterface→ifEntry JSON）；NewNode+Start+Up+Loopback+ProxyCredential；自实现 SOCKS5（RFC1928/1929 认证 + 域名 ADDRTYPE=0x03）→ TLS → 手写 HTTP/1.1：POST pair 断言 protocolVersion/deviceToken/routes，POST session/list（Bearer）断言 ok:true；StatusJSON 断言已登录 tailnet 身份；AAR 经 androidTestImplementation files(libs/tstunnel.aar) 引入。
+      status: complete
+    impl-docs:
+      text: tstunnel/README.md：模块定位、构建方式、AAR 不入库、spike 运行命令（am instrument 参数表）；docs/qa/ts-embed-spike/ 验证记录骨架。
+      status: complete
+  Testing:
+    test-go-wrapper:
+      text: tstunnel 模块 go 测试全绿（蓝本单元测试随复制保留）。
+      status: complete
+      command: export PATH="/c/Users/wx766/.local/opt/go1.27.3/bin:/c/msys2/mingw64/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/go/bin:/c/Users/wx766/bin:/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/wx766/bin:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/cmd:/c/Program Files/nodejs:/c/Program Files/Docker/Docker/resources/bin:/c/Program Files/dotnet:/c/Program Files/Tailscale:/c/Users/wx766/AppData/Local/Programs/Python/Python310/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python310:/c/tools/maven-mvnd-1.0.2-windows-amd64/bin:/c/tools/apache-maven-3.9.16/bin:/c/Users/wx766/AppData/Local/Programs/Python/Python311/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python311:/c/java/jdk-25.0.3+9/bin:/c/Users/wx766/.cargo/bin:/c/Users/wx766/AppData/Local/Microsoft/WindowsApps:/c/Users/wx766/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/wx766/.lmstudio/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/.local/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe:/tmp/codepilot-shadow-claude-yh7qus/AppData/Local/Microsoft/WinGet/Packages/BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe/ripgrep-15.1.0-x86_64-pc-windows-msvc:/c/ProgramData/wx766/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Programs/CodeBuddy CN/bin:/c/Users/wx766/.bun/bin:/c/Users/wx766/AppData/Local/Programs/Zed/bin:/c/Users/wx766/AppData/Local/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1.1-full_build/bin:/c/Users/wx766/AppData/Local/Android/Sdk/platform-tools:/c/Users/wx766/AppData/Local/Android/Sdk/emulator:/c/Users/wx766/AppData/Local/Android/Sdk/cmdline-tools/latest/bin:/c/Users/wx766/AppData/Local/Programs/CatPawAI/bin:/c/Users/wx766/AppData/Local/Programs/Antigravity IDE/bin:/c/Users/wx766/.dotnet/tools:/c/Users/wx766/AppData/Local/Programs/windows-bridge:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Runtimes/6.4.1/usr/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/msys2/mingw64/bin:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ripgrep:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ugrep:/c/Program Files/nodejs:/usr/bin/vendor_perl:/usr/bin/core_perl" && cd /c/zw/Code/deepseek-harness-mobile/tstunnel && go vet ./... && go test -count=1 ./...
+    test-app-unaffected:
+      text: 回归确认 app 主构建不受影响：assembleDebug + 单测全绿（spike 代码只在 androidTest 源集）。
+      status: complete
+      command: cd /c/zw/Code/deepseek-harness-mobile && ./gradlew :app:assembleDebug :app:testDebugUnitTest --rerun
+    test-bridge-unaffected:
+      text: 回归确认 bridge 不受影响：go vet + race 全绿。
+      status: complete
+      command: export PATH="/c/Users/wx766/.local/opt/go1.27.3/bin:/c/msys2/mingw64/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/go/bin:/c/Users/wx766/bin:/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/wx766/bin:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/cmd:/c/Program Files/nodejs:/c/Program Files/Docker/Docker/resources/bin:/c/Program Files/dotnet:/c/Program Files/Tailscale:/c/Users/wx766/AppData/Local/Programs/Python/Python310/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python310:/c/tools/maven-mvnd-1.0.2-windows-amd64/bin:/c/tools/apache-maven-3.9.16/bin:/c/Users/wx766/AppData/Local/Programs/Python/Python311/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python311:/c/java/jdk-25.0.3+9/bin:/c/Users/wx766/.cargo/bin:/c/Users/wx766/AppData/Local/Microsoft/WindowsApps:/c/Users/wx766/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/wx766/.lmstudio/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/.local/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe:/tmp/codepilot-shadow-claude-yh7qus/AppData/Local/Microsoft/WinGet/Packages/BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe/ripgrep-15.1.0-x86_64-pc-windows-msvc:/c/ProgramData/wx766/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Programs/CodeBuddy CN/bin:/c/Users/wx766/.bun/bin:/c/Users/wx766/AppData/Local/Programs/Zed/bin:/c/Users/wx766/AppData/Local/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1.1-full_build/bin:/c/Users/wx766/AppData/Local/Android/Sdk/platform-tools:/c/Users/wx766/AppData/Local/Android/Sdk/emulator:/c/Users/wx766/AppData/Local/Android/Sdk/cmdline-tools/latest/bin:/c/Users/wx766/AppData/Local/Programs/CatPawAI/bin:/c/Users/wx766/AppData/Local/Programs/Antigravity IDE/bin:/c/Users/wx766/.dotnet/tools:/c/Users/wx766/AppData/Local/Programs/windows-bridge:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Runtimes/6.4.1/usr/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/msys2/mingw64/bin:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ripgrep:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ugrep:/c/Program Files/nodejs:/usr/bin/vendor_perl:/usr/bin/core_perl" && cd /c/zw/Code/deepseek-harness-mobile/bridge && go vet ./... && go test -race -count=1 ./...
+  Verification:
+    verify-real-device:
+      text: spike 验证（用户指示本轮以模拟器执行，真机补验为后续事项）：host 起 dshbridge（上游为 0.2.0-rc.2 门禁合规的宿主假上游，本机真实 dsh 均 0.2.1-rc.2 被按设计拒绝）+ serve 暴露；生成一次性配对码；仪器测试带参运行（用户提供的 tagged authkey、serve origin、pairPath、pairingCode）断言 pair 与 session/list 成功；输出与结论落 docs/qa/ts-embed-spike/（含 tag:pca-client 与模拟器两条偏离的如实记录）。
+      status: complete
+    verify-ready:
+      text: strict-spec-cli ready ts-embed-spike 无阻断。
+      status: complete
+      command: strict-spec-cli ready ts-embed-spike
+    verify-change:
+      text: strict-spec-cli verify ts-embed-spike 通过。
+      status: complete
+      command: strict-spec-cli verify ts-embed-spike
+testing_gates:
+  validation_task: test-app-unaffected
+  unit_test_task: test-go-wrapper

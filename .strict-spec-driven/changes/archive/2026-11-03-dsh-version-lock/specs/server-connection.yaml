@@ -1,0 +1,21 @@
+schema: strict-spec-driven/delta-spec/v1
+schema_version: 1
+artifact_type: delta_spec
+schema_file: templates/strict-spec-driven/schemas/delta-spec.yaml
+target_spec: server-connection
+operations:
+  ADDED:
+    dsh-version-lock:
+      strength: MUST
+      statement: 直接连接模式必须在建立连接前校验上游 dsh 版本与声明的兼容版本精确一致：版本不一致或无法确定时，以包含实际版本与所需版本的明确提示拒绝连接，不保存服务器配置，绝不静默继续。
+      scenarios:
+        direct-mismatch-rejected:
+          - GIVEN: 用户在连接对话框输入运行非兼容版本 dsh 的服务器地址
+          - WHEN: 点击测试并连接且凭据交换成功
+          - THEN: 显示包含服务器实际 dsh 版本与应用所需版本的明确提示，连接不建立、配置不保存
+        direct-undetectable-rejected:
+          - GIVEN: 服务器的 dsh 版本信息无法获得（如落地页不含版本对象）
+          - WHEN: 点击测试并连接
+          - THEN: 按不兼容处理并给出明确提示，连接不建立
+  MODIFIED: {}
+  REMOVED: {}

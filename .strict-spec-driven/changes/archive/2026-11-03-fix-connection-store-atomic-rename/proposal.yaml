@@ -1,0 +1,19 @@
+schema: strict-spec-driven/change-proposal/v1
+schema_version: 1
+artifact_type: change_proposal
+schema_file: templates/strict-spec-driven/schemas/change-proposal.yaml
+change:
+  id: fix-connection-store-atomic-rename
+  status: proposed
+summary:
+  what:
+    - ConnectionStore.atomic 用 File.renameTo 覆盖已存在目标文件：Windows JVM 上该调用对已存在目标恒返回 false（同 JDK 25 最小复现证明），导致 remove()（mode 文件已存在时的 forgotten 写入）确定性抛「Could not save connection」，ConnectionStoreTest.protectedProfilePersistsAndOriginsAreIsolated 在本机全量回归中失败。改为 java.nio.file.Files.move(REPLACE_EXISTING, ATOMIC_MOVE)，语义在各平台一致且保持原子替换。
+  why:
+    - 2026-11-02 oi007 合并引入的 ConnectionStore 在 Windows 开发机上单元测试必失败，阻塞 config.yaml 声明的完整项目回归命令；Android/Linux 上 renameTo 覆盖已有文件本就成功，生产行为不变，这是宿主可移植性缺陷。
+scope:
+  in:
+    - app/src/main/java/app/deepseek/harness/mobile/ConnectionStore.kt 的 atomic() 单函数（rename 换 Files.move + 同型异常）。
+  out:
+    - 不改加密格式、文件命名、目录结构与任何对外行为；不重构 ConnectionStore 其他部分；不动 bridge/ 与 docs/。
+unchanged_behavior:
+  - Android 运行时的连接保存/删除/遗忘行为不变（Linux 上两种 rename 语义等价）；KeystoreCodec、BridgeConnection 编解码、forgotten 语义、异常类型 IllegalStateException 与消息「Could not save connection」均不变。

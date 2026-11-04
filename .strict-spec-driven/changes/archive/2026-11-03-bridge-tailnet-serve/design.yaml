@@ -1,0 +1,30 @@
+schema: strict-spec-driven/change-design/v1
+schema_version: 1
+artifact_type: change_design
+schema_file: templates/strict-spec-driven/schemas/change-design.yaml
+change: bridge-tailnet-serve
+approach:
+  - 复制 private-content-assistant 已真机验证的 scripts/ops/tailscale-serve.sh 模式并适配 dshbridge：端口状态机（free/ours/taken:<说明>）由 python3 解析 tailscale serve status --json 得出，覆盖 Foreground 前台会话、TCP 转发、明文 HTTP serve、Funnel 与未知配置；后端地址取自 state 目录 config.json 的 listen 字段（--state 参数或 DSHBRIDGE_STATE 环境变量，默认与 serve 端口一致，DSHBRIDGE_SERVE_PORT 可覆盖）；后端存活检查用 curl 探测回环监听并接受任意 HTTP 状态码（含 404）作为存活信号；写入需 root/operator，sudo 免密时自动提权，被拒时打印修复命令；reset 只移除确属本服务的配置。为脚本配确定性测试 bridge/scripts/test-tailscale-serve.sh：复制脚本进临时目录、PATH 前放置假 tailscale/curl/sudo，从外部断言各分支行为，不触碰真实 tailnet。真机验证：本机 tailnet 节点上跑 serve 脚本，经 https 完成配对与 RPC，并用已配对设备保持 stream WSS 长连接验证 serve 转发稳定，证据落 docs/qa/tailnet-serve/。
+decisions:
+  loopback-only-listen:
+    decision: dshbridge 保持仅回环监听（127.0.0.1），tailnet 暴露一律由 tailscale serve --https 反代承担，不新增 100.x 仅限 tailnet 的绑定。
+    rationale: 回环监听是最严格边界，serve 从本机回环转发即可；bridge 的 PlainListenerAllowed 校验已强制明文监听绑回环，无需改 Go 代码；100.x 绑定会让 bridge 进程直接面对 tailnet 流量，扩大暴露面且引入 SELinux/netlink 之外的另一条路径，收益为零。
+  no-whois-layer-carried:
+    decision: 沿用用户 2026-11-03 已采纳的 bridge-whois-layer 决策：不叠加 WhoIs 白名单层，设备 token 仍是唯一应用层凭据，tailnet 边界交给 ACL + serve；本变更不重开该决策。
+    rationale: serve 转发形态下逐项核对结果：凭据校验按设备 token（Bearer）与来源地址无关，不受对端恒为 127.0.0.1 影响；bridge 全程无地址日志，日志取址问题不存在；pair 限流按 RemoteAddr 主机分桶，经 serve 后所有来源收敛为 127.0.0.1 单桶，即全局 10 次配对/分钟——限制变得更严格而非被削弱，且能到达该端口的请求已被 tailnet ACL 门控，故无需针对性代码修正，仅在部署文档记录该行为差异。
+  script-rejects-non-xff-forwarding:
+    decision: serve 脚本必须在写入任何配置前解析 tailscale serve status --json 检查目标端口：发现 serve --tcp、--tls-terminated-tcp、明文 HTTP serve、Funnel 或前台 serve 会话占用即拒绝，只有空闲端口或确属本服务的 https 反代才允许写入；reset 同样只移除确属本服务的配置。
+    rationale: 这些转发不写 X-Forwarded-For，会让远端请求的对端呈现为 127.0.0.1，与 bridge 把回环当本机流量处理的既有假设冲突；脚本门禁是该铁律在仓库内的自动化执行点，已由脚本测试覆盖各分支。
+  backend-liveness-any-http:
+    decision: serve 脚本的后端存活检查接受回环监听返回的任意 HTTP 状态码（包括 404）作为存活信号，不为脚本新增健康发现端点。
+    rationale: bridge 主规格要求已知与未知未认证端点一律空 404 且不做健康发现页；dshbridge 与 pca 不同，没有 /healthz。任何 HTTP 响应都证明监听进程存在并能应答，而连接被拒才说明后端未启动；这既满足脚本需要又零代码改动。
+  serve-run-mode:
+    decision: serve 部署形态下 dshbridge 以 dsh-bridge serve --behind-tls-proxy 运行：监听保持回环明文，--public-origin 指向 https://<节点 tailnet 域名>:<serve端口>。
+    rationale: tailscale serve 是同主机 TLS 终止反代，正好落在 bridge 既有 --behind-tls-proxy 校验分支内；该分支已存在且被现有测试覆盖，无需新增代码路径，也避免为 serve 形态放宽明文监听约束。
+  no-delta-spec:
+    decision: 本变更为技术型变更，不产生任何主规格条目变更：bridge 的 RPC 白名单转发、配对/撤销生命周期、空 404 与限流行为全部不变，serve 只是 host 侧部署形态与运维脚本；新增的暴露铁律以 delta-tech（bridge-tailnet-exposure）承载，specs/ 目录保持为空。
+    rationale: planned change 明确「服务端不改 RPC 行为」，产出仅为 serve 脚本、部署文档与 QA 证据；bridge-private-transport 等主规格描述的边界行为在 serve 形态下逐项核对后均无需修改。
+alternatives: []
+risks:
+  - tailscale serve 对 WSS 长连接（stream 路由）的转发行为需真机验证；若不成立，stream 需要替代承载（milestone 风险已列），真机验证任务为此显式保留。
+  - 开发机是 Windows（Git Bash）：serve 脚本按 bash + python3 编写，Windows host 部署需 Git Bash 或 WSL，部署文档显式注明运行时依赖。

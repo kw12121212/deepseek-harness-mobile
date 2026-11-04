@@ -1,0 +1,17 @@
+schema: strict-spec-driven/change-design/v1
+schema_version: 1
+artifact_type: change_design
+schema_file: templates/strict-spec-driven/schemas/change-design.yaml
+change: fix-connection-store-atomic-rename
+approach:
+  - 单点替换：atomic() 中 tmp.renameTo(destination) 改为 Files.move(tmp.toPath(), destination.toPath(), REPLACE_EXISTING, ATOMIC_MOVE)，失败时抛同型同文的 IllegalStateException；finally 中的 tmp.delete() 在 move 成功后是对不存在文件的 no-op。修复前证据：本机 JDK 25 上该测试类三次确定性失败于 remove() 的 rename-over-existing；最小 Java 探针证实 renameTo 覆盖已存在文件返回 false 而 Files.move(REPLACE_EXISTING, ATOMIC_MOVE) 成功。
+decisions:
+  files-move-replace-existing:
+    decision: 用 java.nio.file.Files.move 携带 REPLACE_EXISTING 与 ATOMIC_MOVE 替换 File.renameTo。
+    rationale: File.renameTo 的 JavaDoc 明确能否覆盖已存在文件是平台相关的；Windows JVM（含本机 JDK 25.0.3）恒不能。Files.move 两个选项在本机 NTFS 与 Android/Linux 均验证可用，保持原子替换语义（同目录内 move），异常路径维持 IllegalStateException 与原消息，调用方零改动。
+  no-delta-spec:
+    decision: 纯内部缺陷修复，specs/ 保持为空：缺陷只在 Windows 测试宿主上可见，Android 端可观察行为（保存/删除/遗忘连接）在修复前后完全一致，无任何主规格条目变化。
+    rationale: server-connection 等主规格描述的是应用对外行为；rename 实现细节不属于任何规格要求。
+alternatives: []
+risks:
+  - ATOMIC_MOVE 与 REPLACE_EXISTING 组合在个别网络文件系统上可能抛 AtomicMoveNotSupportedException——连接存储只落在本地 noBackupFilesDir/临时目录，不受影响；若未来出现该异常再按需降级，本变更不做投机分支（YAGNI）。

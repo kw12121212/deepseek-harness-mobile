@@ -1,0 +1,20 @@
+schema: strict-spec-driven/main-tech/v1
+schema_version: 1
+artifact_type: main_tech
+schema_file: templates/strict-spec-driven/schemas/main-tech.yaml
+standard:
+  id: ops-script-deterministic-testing
+  title: 运维脚本确定性测试
+  category: testing
+rules:
+  fake-command-harness:
+    strength: MUST
+    statement: 依赖真实外部系统（tailnet、systemd、云 CLI 等）的运维脚本必须附带确定性测试：把脚本复制进临时目录，在 PATH 前放置记录调用的假命令，从外部断言退出码、输出与调用序列；假命令对关键 CLI 的输出形状（含空态）要先在本机抓真实输出逐字段核对，不得按想象建模。
+    rationale: tailscale-serve.sh 无法在回归里真实执行 tailscale；假命令模式已在 private-content-assistant 与本仓库两处复用并跨 Windows Git Bash 稳定，端口状态机的全部拒绝分支（TCP 转发/明文 HTTP/Funnel/前台会话/他人配置）只有这样才能进入回归。空态建模失真（如空闲节点 serve status --json 输出 null 而非空串）会把正常态判为解析失败，教训已录 lessons/testing/windows-host-bash-home-env-i-6063ff。
+    enforcement:
+      method: test
+    examples:
+      good:
+        - test-tailscale-serve.sh：假 tailscale 按 fixture 输出 serve status --json 各形态并记录调用
+      bad:
+        - 在 CI 里真实执行 tailscale serve 配置，或假命令凭记忆编造 CLI 输出形状

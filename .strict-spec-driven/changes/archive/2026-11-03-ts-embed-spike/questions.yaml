@@ -1,0 +1,42 @@
+schema: strict-spec-driven/question-list/v1
+schema_version: 1
+artifact_type: question_list
+schema_file: templates/strict-spec-driven/schemas/question-list.yaml
+change: ts-embed-spike
+open: []
+resolved:
+  - id: requirement-problem
+    question: 内嵌 tsnet 经 serve 访问 dshbridge 的连通性为何需要先行验证？
+    context: 影响 milestone 后续三个 planned change 的可行性。
+    answer: milestone 的 spike-first 决策：该链路未在本项目验证过，后续 ts-token-profile/ts-tunnel-integration 全部押注其成立；不成立则里程碑后续停止重新讨论暴露方式。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-interpretation
+    question: spike 的准确范围是什么？
+    context: 影响实现文件与测试范围。
+    answer: 复制已真机验证的 tstunnel 蓝本 + AAR 构建脚本 + 参数驱动的仪器 spike 测试（真机 tag:dsh-mobile 入网 → serve 入口 → 一次 pair + 一条白名单 RPC）；不做 UI、不做 TunnelManager、不进常规回归。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-non-goals
+    question: 哪些相邻工作明确不做？
+    context: 影响范围边界。
+    answer: 不做 token 参数连接资料、设置页、LoopbackProxy 生产栈、TunnelManager（后续变更）；不改 app 主代码与 bridge；AAR 不入库；spike 不作为门禁。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-outcome
+    question: 什么结果证明 spike 完成？
+    context: 影响验收与证据形态。
+    answer: 真机（非模拟器）上 spike 测试通过：tsnet 节点以 tag:dsh-mobile 入网 Up、经 serve 完成 pair（取得 deviceToken/routes）与 session/list（ok:true）；证据（instrument 输出、StatusJSON）落 docs/qa/ts-embed-spike/。spike 不通过则明确报告失败点并停止里程碑后续。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-trigger
+    question: 为什么现在做？
+    context: 影响排序依据。
+    answer: milestone 落地顺序：host 侧 serve 暴露（bridge-tailnet-serve 已完成归档）就绪，spike 是 app 侧第一步且 gate 后续三个 planned change。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap

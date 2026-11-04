@@ -1,0 +1,27 @@
+schema: strict-spec-driven/change-design/v1
+schema_version: 1
+artifact_type: change_design
+schema_file: templates/strict-spec-driven/schemas/change-design.yaml
+change: dsh-version-lock
+approach:
+  - 两组件各自实现同一契约：bridge 在 serve 启动时（upstream client 就绪后、监听开始前）GET 上游 / 解析 __DSH_BOOT__.release.version 并与常量比对，不等于 0.2.0-rc.2 或解析失败即返回明确错误拒绝启动；app 在「测试并连接」完成凭据交换后立即用同一根路径探测比对，不匹配在 errorView 显示「服务器 dsh 版本 X，本应用适配 Y，升级需…」引导文案并恢复按钮，不保存配置不连接。解析器各自独立实现（Go/Kotlin 无共享代码），读取上限 1 MiB，正则/JSON 提取 __DSH_BOOT__ 对象中的 release.version。
+decisions:
+  probe-authenticated-root-html:
+    decision: 版本探测用已认证 HTTP GET 上游根路径，从落地页 HTML 的 globalThis["__DSH_BOOT__"] 对象提取 release.version。
+    rationale: 本机实测（docs/qa 证据）：dsh 落地页固定内嵌 __DSH_BOOT__（含 release.version 与 commit），是唯一无需新增 RPC 的稳定版本面；未认证 GET / 返回 401，而 bridge（token/cookie 交换后）与 app（凭据交换后）在探测时点都已持有认证，零新增能力、零白名单改动（符合 bridge 显式白名单哲学）。
+  exact-lock-fail-closed:
+    decision: 兼容判定为字符串精确等于 0.2.0-rc.2；任何其他版本、解析不出版本、请求失败一律按不兼容拒绝。
+    rationale: 用户 2026-11-03 已采纳：不做最低兼容范围放行，rc→rc、rc→正式版都走显式变更重验；fail closed 防止探测面被绕过（如上游换个无版本页面的部署）。
+  bridge-enforce-at-serve-start:
+    decision: bridge 在 serve 启动阶段强制校验并拒绝启动；pair/转发不再各自校验。
+    rationale: serve 起不来就没有任何 pair/RPC 入口，单一强制点最简且可测（启动错误信息直达运维者）；避免在每请求路径上重复探测带来的延迟与状态复杂度。
+  direct-enforce-at-test-connect:
+    decision: app 直连模式在「测试并连接」凭据交换成功后、sessions() 探活前探测校验；不匹配显示含实际版本与所需版本的引导文案，不保存配置不进入会话。
+    rationale: 这是用户建立 direct 连接的唯一入口，认证已就绪、失败可就地反馈；放在 sessions() 之前避免对不兼容上游发起会话面调用。
+  per-component-constant:
+    decision: app 与 bridge 各在单一常量处声明 0.2.0-rc.2（Kotlin const 与 Go const），文档以两处常量为唯一事实来源。
+    rationale: 跨语言无法共享编译期常量；单处声明保证各自组件内无漂移，升级时改常量+显式变更重验（与 RPC 白名单同一哲学）。
+alternatives: []
+risks:
+  - 本机当前上游为 0.2.1-rc.2：本变更合入后本机 direct 与 bridge 连接将被（正确地）拒绝，直到显式升级变更放行——这是锁的设计行为，真机验证恰好以本机为拒绝路径证据。
+  - __DSH_BOOT__ 是 dsh Web 落地页实现细节，未来 dsh 可能改变内嵌形式：fail closed 保证探测面失效时表现为拒绝而非放行，升级变更时同步调整解析器即可。

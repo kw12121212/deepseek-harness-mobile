@@ -6,4 +6,4 @@ milestones:
   tailscale-private-transport:
     title: 内置 Tailscale 私有链路与 dsh 版本锁定
     path: roadmap/milestones/tailscale-private-transport.yaml
-    status: proposed
+    status: complete

@@ -1,0 +1,19 @@
+schema: strict-spec-driven/change-design/v1
+schema_version: 1
+artifact_type: change_design
+schema_file: templates/strict-spec-driven/schemas/change-design.yaml
+change: security-completeness-review
+approach:
+  - 清单式评审：每条安全边界一项（威胁/机制/证据文件指针/结论），功能对照按 specs 逐规格 × tailscale 链路核对并标 已验证/未覆盖/有意不同。证据全部来自本里程碑五个已归档变更的 docs/qa 记录、单测与代码引用；无证据的项显式列未覆盖，不补造。
+decisions:
+  evidence-indexed-review:
+    decision: 评审文档为证据索引：每条结论必须指向 docs/qa/<topic>/ 或具体 file:line；无证据即标未覆盖。
+    rationale: planned change 明言『结论必须能指到具体证据文件』；与 review_evidence 精神一致。
+  findings-become-followups:
+    decision: 发现的问题记录为后续变更建议，本变更零代码改动。
+    rationale: planned change 明言『发现的问题开后续变更而不是在本变更里顺手修』。
+  no-delta-spec:
+    decision: 纯评审文档变更，specs/ 空：不改任何主规格条目。
+    rationale: 评审产出是证据索引与差距清单，行为面无变化。
+alternatives: []
+risks: []

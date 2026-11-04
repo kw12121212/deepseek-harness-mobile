@@ -1,0 +1,42 @@
+schema: strict-spec-driven/question-list/v1
+schema_version: 1
+artifact_type: question_list
+schema_file: templates/strict-spec-driven/schemas/question-list.yaml
+change: ts-tunnel-integration
+open: []
+resolved:
+  - id: requirement-problem
+    question: 为什么需要本变更？
+    context: 影响 milestone 主线。
+    answer: spike 已证明链路成立但隧道尚未成为 App 正式承载；公网入口依赖的取消要靠本变更在 App 侧落地（TunnelManager/LoopbackProxy/设置页/传输接入）。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-interpretation
+    question: 本变更的准确范围？
+    context: 影响实现文件边界。
+    answer: 复制蓝本两包 + WS Upgrade 透传 + TunnelRoutes 单点改写 + 设置页隧道段 + 启动 bootstrap + JVM 单测 + 模拟器端到端；不做 token 参数化连接资料与真机验证（后续/遗留）。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-non-goals
+    question: 哪些不做？
+    context: 影响范围边界。
+    answer: 不做连接资料 token 参数化（ts-token-profile）、LoopbackProxy keep-alive/HTTP2、bridge/tstunnel Go 改动、前台常驻服务、Compose 重构。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-outcome
+    question: 什么证明完成？
+    context: 影响验收。
+    answer: 单测全绿 + 模拟器端到端：设置页配置后隧道 Connected，导入 bridge 配置经隧道完成配对，会话列表与流式刷新经回环代理全链路工作；证据落 docs/qa/ts-tunnel-integration/。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-trigger
+    question: 为何现在？
+    context: 影响排序。
+    answer: ts-embed-spike 已归档（依赖满足），本变更 gate 后续 ts-token-profile。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap

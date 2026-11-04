@@ -1,0 +1,22 @@
+schema: strict-spec-driven/change-proposal/v1
+schema_version: 1
+artifact_type: change_proposal
+schema_file: templates/strict-spec-driven/schemas/change-proposal.yaml
+change:
+  id: ts-tunnel-integration
+  status: proposed
+summary:
+  what:
+    - 'App 集成内嵌隧道：按 private-content-assistant 已验证形态复制 TunnelManager（starting/connected/needs-key/failed 四态、ensureUp 幂等单例、持久状态免 key 重连、入网成功即清 key）与 LoopbackProxy 回环网络栈（令牌前缀防本机他 App 盗用、SSE 即时分块下发、Connection: close 定界；为本项目 WS 流量增加 Upgrade 透传：WebSocket 升级请求原样转发 Connection/Upgrade 头、响应方向不过滤），tunnel/ 与 loopback/ 两个包 + 单一 TunnelRoutes 改写点（transportRequest 与两条传输路径的 WS URL 按请求时改写到 http://127.0.0.1:<port>/<token>，Origin 头保持真实 origin），设置页新增隧道段（状态/节点名/服务器地址/重输 key/重启），启动时对隧道 origin 后台 ensureUp。'
+  why:
+    - milestone 核心：spike 已证明链路成立，本变更把隧道变成 App 的正式承载——取消公网入口依赖在 App 侧落地；平台约束（HttpURLConnection 不走隧道、不能解析 MagicDNS）要求全部请求基地址改为回环代理。
+scope:
+  in:
+    - app/src/main/java/.../loopback/（Socks5、LoopbackProxy）；.../tunnel/（Types、ConfigStore、GoLayer、TunnelManager、TunnelIntegration+TunnelRoutes）；HarnessTransport/Direct/Bridge 传输的单一改写点；MainActivity 设置页隧道段与启动 bootstrap；JVM 单测（LoopbackProxy 协议级含 WS 透传、TunnelManager 状态机假桩）；docs/qa/ts-tunnel-integration/ 证据。
+  out:
+    - 不做连接资料 token 参数化与导入即用（ts-token-profile）；不做真机 Pixel 验证（本轮模拟器，真机补验遗留）；不做 LoopbackProxy 的 keep-alive/HTTP2；不改 bridge 与 tstunnel Go 模块；不引入前台常驻服务。
+unchanged_behavior:
+  - 隧道未连接或 origin 不匹配时 TunnelRoutes 恒等改写，两条路径行为与现状完全一致；配对码/凭据/随机路由机制不变；direct 模式 HTTPS 约束不变（改写只发生在已 https 校验后的传输层）；版本锁与 serve 暴露行为不变。
+roadmap:
+  milestone: tailscale-private-transport
+  planned_change: ts-tunnel-integration

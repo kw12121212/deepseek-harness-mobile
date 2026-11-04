@@ -5,7 +5,7 @@ schema_file: ../../templates/strict-spec-driven/schemas/planned-change.yaml
 planned_change:
   id: dsh-version-lock
   milestone: tailscale-private-transport
-status: planned
+status: complete
 summary: dsh 版本锁定：声明兼容版本（0.2.0-rc.2），direct 与 bridge 两条路径连接时校验上游版本，不匹配明确拒绝或提示，配回归测试
 details: 现状：App 只有提示文案（此版本需要 dsh 0.2.0-rc.2 的核心接口），bridge 对上游 dsh 版本零校验，protocolVersion 1 只是 bridge 外层协议。本变更为真锁：单一常量处声明兼容的 dsh 版本契约；bridge 在 serve/pair 握手阶段探测上游 dsh 版本（用现有白名单内的轻量 RPC 或启动探测），不兼容则拒绝启动或拒绝 pair 并给出明确原因；direct 路径在测试并连接时校验版本，不匹配给出引导文案而非静默失败。锁定语义已定（用户 2026-11-03 采纳推荐）：精确锁当前已验证版本（0.2.0-rc.2），不做最低兼容范围放行；任何版本升级（含 rc→rc、rc→正式版）一律走显式变更并重新真机验证，与 bridge RPC 白名单「显式放行」同一哲学；探测不到版本信息时按不兼容处理（fail closed）。测试：app 单测覆盖版本解析与不匹配分支，bridge go test 覆盖上游版本探测、拒绝路径与版本缺失分支；文档同步更新 README/AGENTS 的版本表述。
 depends_on: []

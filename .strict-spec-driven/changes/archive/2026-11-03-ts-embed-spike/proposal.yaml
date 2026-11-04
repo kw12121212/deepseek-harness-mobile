@@ -1,0 +1,22 @@
+schema: strict-spec-driven/change-proposal/v1
+schema_version: 1
+artifact_type: change_proposal
+schema_file: templates/strict-spec-driven/schemas/change-proposal.yaml
+change:
+  id: ts-embed-spike
+  status: proposed
+summary:
+  what:
+    - 验证 spike：复制 private-content-assistant/android/tstunnel 已真机验证的 Go 薄包装（tailscale.com/tsnet，XDG_CACHE_HOME 私有缓存、netmon 接口注入绕 SELinux netlink、Up 超时收敛）到仓库根 tstunnel/ 模块（hostinfo app 名 dsh-tstunnel），配 gomobile AAR 构建脚本（版本钉在 go.mod tool 指令、-androidapi 26、16KB page size ldflags、llvm-strip、AAR 不入库）；app androidTest 增加 spike 仪器测试（复制实证结论的 RFC1928/1929 自实现 SOCKS5 拨号与 TLS+HTTP 极简客户端）：真机以 tag:dsh-mobile tagged auth key 起 tsnet 节点 → Up → 经 host 的 tailscale serve 入口访问 dshbridge → 完成一次 pair 与一条白名单 RPC（session/list），证据落 docs/qa/ts-embed-spike/。
+  why:
+    - milestone 决策沿 private-content-assistant 的 spike-first：真机验证内嵌 tsnet 经 serve 访问 dshbridge 的连通与身份成立，才继续 ts-token-profile / ts-tunnel-integration；不成立则停止本里程碑后续实现回到暴露方式重新讨论。spike 不做 UI。
+scope:
+  in:
+    - tstunnel/ Go 模块与构建脚本（复制蓝本适配）；app/src/androidTest spike 测试与 SOCKS5/TLS/HTTP 最小客户端；.gitignore AAR 输出；docs/qa/ts-embed-spike/ 真机证据。
+  out:
+    - 不做 TunnelManager/设置页/连接资料 token 参数（ts-token-profile、ts-tunnel-integration 独立变更）；不改 app 主代码与 UI；AAR 不入库；不新增 bridge 能力；spike 测试默认不进常规回归（需仪器参数才执行）。
+unchanged_behavior:
+  - app 既有 direct/bridge 连接路径、UI、单测全不动；bridge 行为不变；tstunnel 为新顶层模块，不影响 bridge/ 与 app/ 的独立构建（androidTest 仅在 AAR 存在且显式运行时编译）。
+roadmap:
+  milestone: tailscale-private-transport
+  planned_change: ts-embed-spike

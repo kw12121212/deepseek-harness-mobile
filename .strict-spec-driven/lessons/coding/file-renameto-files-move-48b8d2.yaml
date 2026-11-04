@@ -1,0 +1,19 @@
+schema: strict-spec-driven/lesson/v1
+schema_version: 1
+artifact_type: lesson
+schema_file: templates/strict-spec-driven/schemas/lesson.yaml
+lesson:
+  id: file-renameto-files-move-48b8d2
+  title: File.renameTo 不能覆盖已存在文件：原子写必须用 Files.move
+category: coding
+status: active
+created_at: '2026-11-03T13:40:03.632Z'
+updated_at: '2026-11-03T13:40:03.632Z'
+context: oi007 合并引入 ConnectionStore.atomic 用 tmp.renameTo(destination) 覆盖已存在目标；Windows JVM（含 JDK 25）上该调用恒返回 false，单元测试在 Windows 开发机必失败；Linux/Android 上语义恰好成立，DSH 沙箱内回归测不出。
+observation: remove() 在 mode 文件已存在时的覆盖写必抛「Could not save connection」，本机三次确定性失败；最小 JDK 探针证实 renameTo-over-existing=false 而 Files.move(REPLACE_EXISTING, ATOMIC_MOVE)=true。
+takeaway: 原子写文件模式一律用 java.nio.file.Files.move(REPLACE_EXISTING, ATOMIC_MOVE)（minSdk 26+ 可用），别用 File.renameTo——其能否覆盖已存在目标是平台相关的（JavaDoc 明示）。
+applies_when: 在 Kotlin/Java 中把临时文件改名覆盖已存在目标（原子写/替换配置/落盘缓存）时，或在 Windows 开发机上出现仅在单测环境失败的文件操作时
+occurrences:
+  - origin: fix-connection-store-atomic-rename
+    date: '2026-11-03'
+    evidence: app/src/main/java/app/deepseek/harness/mobile/ConnectionStore.kt atomic() 修复 diff；修复前 ConnectionStoreTest 三次失败记录（fix-connection-store-atomic-rename/tasks.yaml repro 任务）

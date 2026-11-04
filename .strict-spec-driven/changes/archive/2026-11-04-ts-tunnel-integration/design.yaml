@@ -1,0 +1,24 @@
+schema: strict-spec-driven/change-design/v1
+schema_version: 1
+artifact_type: change_design
+schema_file: templates/strict-spec-driven/schemas/change-design.yaml
+change: ts-tunnel-integration
+approach:
+  - '两包复制蓝本并最小适配：loopback=Socks5（RFC1928/1929 拨号 + TLS 层含端点识别）与 LoopbackProxy（令牌前缀、在役 socket 清点、分块即发）；tunnel=四态 TunnelManager（StateFlow 换 @Volatile+onChange 回调适配本项目无协程）、TunnelConfigStore（SharedPreferences）、GoLayer（gomobile 工厂 + NetworkInterface 快照）。本项目特有：LoopbackProxy 增加 Upgrade 透传（pca 只有 WebView HTTP；本项目 stream 是 WebSocket——升级请求的 Connection/Upgrade/Sec-WebSocket-* 头原样转发、响应方向对该连接不滤 hop-by-hop、不注 Connection: close，升级后纯字节泵）；单一 TunnelRoutes 改写点按请求时生效（transportRequest 入口与两条传输的 WS URL），Origin/Host 语义保持真实 origin（直连路径的 dsh 信任围栏靠它）；隧道 bootstrap 在启动 worker 对隧道 origin ensureUp，needs-key 分态由设置页承接。'
+decisions:
+  upgrade-passthrough-proxy:
+    decision: 'LoopbackProxy 对带 Upgrade 头的请求进入透传模式：请求方向保留 Connection/Upgrade/Sec-WebSocket-*，响应方向不过滤头、不注入 Connection: close，状态行后纯字节双向泵。'
+    rationale: 'pca 蓝本剥 hop-by-hop（含 upgrade）并强制 Connection: close，其 WebView 流量够用但会杀死 WebSocket 握手（101 响应缺 Connection/Upgrade 头客户端即拒绝）；升级后的 WS 帧是纯字节流，代理本就分块即发，天然承载。以 JVM 协议级测试锁定该分支。'
+  per-request-route-rewrite:
+    decision: TunnelRoutes 单点改写：隧道 Connected 时登记 (serveBase→proxyBase) 映射，transportRequest 与两条传输的 WS URL 构造在请求时刻改写；不重建 HarnessApi/传输对象。
+    rationale: applyServer/apiFor 在 UI 线程构造且无法阻塞等隧道（ensureUp 最长 60s）；按请求改写让映射翻转即刻生效、UI 零改动，mux 重连循环自然经新路由。Origin 头保留真实 origin：直连路径的 dsh 浏览器信任围栏按 Origin/Host 校验，回环地址会被拒。
+  clear-key-after-join:
+    decision: 入网成功即清保存的 auth key（tagged key 一次性使命完成），之后凭 filesDir 持久状态免 key 重连；needs-key 只在无 key 且无持久状态时出现。
+    rationale: pca 用户已确认方案随蓝本沿用：节点状态已持久，继续明文保存 key 只增加泄露面（milestone 对 token 不入日志与备份同哲学）。
+  settings-section-not-compose:
+    decision: 隧道设置以设置页新增段（程序化 Views，与现有 serverDialogAction/设置 sheet 同构）呈现状态/节点名/服务器地址/重输 key/重启，不做 Compose 重构。
+    rationale: 本 App UI 为程序化 Views 体系；按 AGENTS.md UI 交 agy 的路由针对 Compose/主题工作，设置段属既有体系内嵌区块，遵循现有模式并以模拟器截图验收。
+alternatives: []
+risks:
+  - WS 透传是新分支（蓝本没有）：由协议级 JVM 测试 + 模拟器端到端（配对→会话列表→流式刷新）双重验证；不成立则 stream 需替代承载（milestone 风险既有）。
+  - 隧道 up 前（starting/failed）对 serve origin 的直连请求会因系统 DNS 不识 ts.net 而失败——表现为既有重连循环报错，状态页可见；按需启动语义下可接受，bootstrap 保证常规路径先隧道后数据。

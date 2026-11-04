@@ -1,0 +1,19 @@
+schema: strict-spec-driven/lesson/v1
+schema_version: 1
+artifact_type: lesson
+schema_file: templates/strict-spec-driven/schemas/lesson.yaml
+lesson:
+  id: websocket-b4f0f5
+  title: 隧道/代理类改写点要为 WebSocket 补双向字节泵
+category: coding
+status: active
+created_at: '2026-11-03T16:00:19.205Z'
+updated_at: '2026-11-03T16:00:19.205Z'
+context: ts-tunnel-integration 的 LoopbackProxy 升级透传分支：设计写明「状态行后纯字节双向泵」，实现只写了 上游→客户端 单向泵——客户端→上游方向无人再读，WS ping/上行帧滞留本地，okhttp pingInterval 判死连接。JVM 测试恰好也只测单向，QA 的 WS 证据只是一条 404 升级响应，缺陷未暴露，由独立评审抓出。
+observation: 修复为握手后起独立线程泵 客户端→上游，任一方向结束关双端；并补上行帧透传测试（客户端 ping 帧必须到达上游）。
+takeaway: 为长连接（WebSocket/SSE）写代理或透传时：字节泵必须双向各一线程并互为生命周期绑定；测试必须两个方向各断言一次帧到达，单向测试会放行半成品。
+applies_when: 实现任何 WebSocket/双向流的中继、代理、透传层，或为其编写协议级测试时
+occurrences:
+  - origin: ts-tunnel-integration
+    date: '2026-11-03'
+    evidence: app/src/main/java/app/deepseek/harness/mobile/loopback/LoopbackProxy.kt 升级分支双向泵；LoopbackProxyTest.upgradeClientFramesReachUpstream；docs/qa/ts-tunnel-integration/validation.md §6 评审修复记录

@@ -1,0 +1,19 @@
+schema: strict-spec-driven/lesson/v1
+schema_version: 1
+artifact_type: lesson
+schema_file: templates/strict-spec-driven/schemas/lesson.yaml
+lesson:
+  id: lesson-db0502
+  title: 前置门禁必须区分「未认证」与「不满足」
+category: coding
+status: active
+created_at: '2026-11-03T14:18:41.368Z'
+updated_at: '2026-11-03T14:18:41.368Z'
+context: dsh-version-lock 在直连「测试并连接」插入版本门禁：设计假设「探测时点已持有认证」，但裸地址首连（无 token、无 cookie）探测必得 401，首版实现把未认证当『无法确定版本→不兼容』硬拒绝，阻断了兼容服务器的认证引导流程（unchanged_behavior 回归）。
+observation: 评审发现：裸地址首连永远无法到达 OAuth/登录链接引导；修复为三态探测（未认证/探测不到/版本），未认证时跳过门禁走既有认证流程，并以纯函数决策 + 单测锁定四分支。
+takeaway: 在连接/启动流程上加任何前置门禁（版本锁、能力探测、健康检查）时，探测结果必须区分『证据未获得（未认证/未授权）』与『证据表明不满足』；前者放行到既有认证/引导流程，后者才拒绝。
+applies_when: 在客户端或服务端启动/连接路径上新增基于探测（probe）的准入判断时，特别是探测本身需要先通过认证的场景
+occurrences:
+  - origin: dsh-version-lock
+    date: '2026-11-03'
+    evidence: app/src/main/java/app/deepseek/harness/mobile/DshVersionContract.kt 三态 DshVersionProbe 与 dshVersionGateDecision；DshVersionContractTest 门禁分支测试；docs/qa/dsh-version-lock/validation.md 评审修复记录

@@ -1,0 +1,42 @@
+schema: strict-spec-driven/question-list/v1
+schema_version: 1
+artifact_type: question_list
+schema_file: templates/strict-spec-driven/schemas/question-list.yaml
+change: ts-token-profile
+open: []
+resolved:
+  - id: requirement-problem
+    question: 为何需要？
+    context: milestone 主线。
+    answer: 取消公网入口依赖的最后一环：连接资料自带 token 参数，手机侧导入即用，无需任何交互式登录或手动配置隧道（用户硬性要求 token 为参数）。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-interpretation
+    question: 范围？
+    context: 实现边界。
+    answer: 连接资料 JSON 可选 tailscale 字段（origin/authKey/hostname?）+ 导入写入隧道配置 + worker ensureUp 先行 + 设置页密文；不做 bridge 代发 key、不做新 UI 页。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-non-goals
+    question: 不做什么？
+    context: 边界。
+    answer: bridge 集成 Tailscale API 代发 key（独立变更另行评审）；连接资料加密形态变化；交互式登录任何形式。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-outcome
+    question: 完成判据？
+    context: 验收。
+    answer: 单测（解析/校验/写入/回归）全绿；模拟器或等价证据证明 导入→隧道 up→配对 链路；key 卫生约束落实；证据落 docs/qa/ts-token-profile/。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-trigger
+    question: 为何现在？
+    context: 排序。
+    answer: ts-tunnel-integration 已归档（隧道设施就绪），本变更是 security-completeness-review 前最后一个功能项。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap

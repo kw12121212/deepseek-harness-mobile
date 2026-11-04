@@ -1,0 +1,40 @@
+schema: strict-spec-driven/task-list/v2
+schema_version: 2
+artifact_type: task_list
+schema_file: templates/strict-spec-driven/schemas/task-list.yaml
+change: bridge-tailnet-serve
+sections:
+  Implementation:
+    impl-serve-script:
+      text: 新增 bridge/scripts/tailscale-serve.sh：serve/status/reset 三子命令；--state 或 DSHBRIDGE_STATE 定位 config.json 取 listen 得后端端口，DSHBRIDGE_SERVE_PORT 覆盖 serve 端口；python3 解析 tailscale serve status --json 判端口状态（free/ours/taken），拒绝 TCP 转发、明文 HTTP serve、Funnel、前台会话占用；后端存活检查接受任意 HTTP 状态码；sudo 免密自动提权、被拒给修复命令；reset 只移除确属本服务的配置。
+      status: complete
+    impl-script-tests:
+      text: 新增 bridge/scripts/test-tailscale-serve.sh 确定性测试：复制 serve 脚本进临时目录，PATH 前放置假 tailscale/curl/sudo 命令记录调用并模拟 serve status --json 各形态（空配置、本服务反代、TCP 转发、明文 HTTP、Funnel、前台会话、其他服务占用、status 读取失败、后端不健康、写入被拒），从外部断言脚本退出码与输出，不触碰真实 tailnet 与真实文件系统之外的位置。
+      status: complete
+    impl-docs:
+      text: bridge/README.md 新增 tailnet serve 部署段落：serve 运行形态（dsh-bridge serve --behind-tls-proxy + --public-origin https://<节点域名>:<serve端口>）、脚本用法（serve/status/reset、DSHBRIDGE_SERVE_PORT/DSHBRIDGE_STATE）、Windows host 需 Git Bash 或 WSL 的运行时依赖、禁止 serve --tcp/--tls-terminated-tcp/Funnel 的原因（不写 X-Forwarded-For）、pair 限流经 serve 收敛为全局 10 次/分钟的行为说明、tailnet ACL 决定谁能连；docs/qa/tailnet-serve/ 建验证记录。
+      status: complete
+  Testing:
+    test-script-tests:
+      text: 确定性脚本测试全绿：bash bridge/scripts/test-tailscale-serve.sh，覆盖端口状态机各分支、拒绝分支、提权与 reset 守护分支。
+      status: complete
+      command: bash bridge/scripts/test-tailscale-serve.sh
+    test-bridge-regression:
+      text: bridge Go 回归确认无波及：go vet 与全量测试（本变更不改 Go 代码，跑全量确认零回归）。
+      status: complete
+      command: export PATH="/c/Users/wx766/.local/opt/go1.27.3/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/go/bin:/c/Users/wx766/bin:/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/wx766/bin:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/cmd:/c/Program Files/nodejs:/c/Program Files/Docker/Docker/resources/bin:/c/Program Files/dotnet:/c/Program Files/Tailscale:/c/Users/wx766/AppData/Local/Programs/Python/Python310/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python310:/c/tools/maven-mvnd-1.0.2-windows-amd64/bin:/c/tools/apache-maven-3.9.16/bin:/c/Users/wx766/AppData/Local/Programs/Python/Python311/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python311:/c/java/jdk-25.0.3+9/bin:/c/Users/wx766/.cargo/bin:/c/Users/wx766/AppData/Local/Microsoft/WindowsApps:/c/Users/wx766/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/wx766/.lmstudio/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/.local/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe:/tmp/codepilot-shadow-claude-yh7qus/AppData/Local/Microsoft/WinGet/Packages/BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe/ripgrep-15.1.0-x86_64-pc-windows-msvc:/c/ProgramData/wx766/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Programs/CodeBuddy CN/bin:/c/Users/wx766/.bun/bin:/c/Users/wx766/AppData/Local/Programs/Zed/bin:/c/Users/wx766/AppData/Local/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1.1-full_build/bin:/c/Users/wx766/AppData/Local/Android/Sdk/platform-tools:/c/Users/wx766/AppData/Local/Android/Sdk/emulator:/c/Users/wx766/AppData/Local/Android/Sdk/cmdline-tools/latest/bin:/c/Users/wx766/AppData/Local/Programs/CatPawAI/bin:/c/Users/wx766/AppData/Local/Programs/Antigravity IDE/bin:/c/Users/wx766/.dotnet/tools:/c/Users/wx766/AppData/Local/Programs/windows-bridge:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Runtimes/6.4.1/usr/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/msys2/mingw64/bin:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ripgrep:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ugrep:/c/Program Files/nodejs:/usr/bin/vendor_perl:/usr/bin/core_perl" && cd bridge && go vet ./... && go test -race -count=1 ./...
+  Verification:
+    verify-real-host:
+      text: 真机 host 验证：在已登录 tailnet 的 host 上执行 serve 脚本配置暴露，经 https://<节点域名>:<端口> 完成一次配对与一次 RPC 调用，并保持 stream 路由 WSS 长连接收帧 30 秒以上验证 serve 转发稳定；输出与结论落 docs/qa/tailnet-serve/。
+      status: complete
+    verify-ready:
+      text: 变更就绪校验：strict-spec-cli ready bridge-tailnet-serve 无阻断项。
+      status: complete
+      command: strict-spec-cli ready bridge-tailnet-serve
+    verify-change:
+      text: 变更完整校验：strict-spec-cli verify bridge-tailnet-serve 通过。
+      status: complete
+      command: strict-spec-cli verify bridge-tailnet-serve
+testing_gates:
+  validation_task: test-bridge-regression
+  unit_test_task: test-script-tests

@@ -1,0 +1,25 @@
+schema: strict-spec-driven/delta-spec/v1
+schema_version: 1
+artifact_type: delta_spec
+schema_file: templates/strict-spec-driven/schemas/delta-spec.yaml
+target_spec: server-connection
+operations:
+  ADDED:
+    embedded-tailnet-tunnel:
+      strength: MUST
+      statement: 应用必须提供内嵌 tailnet 隧道作为可选承载：配置隧道服务器地址与 tagged auth key 后，隧道按需启动并以四态（连接中/已连接含节点名/需要 key/失败含原因）呈现；隧道在役时对隧道服务器地址的全部请求经本机回环代理出站，未连接或地址不匹配时行为与无隧道完全一致。
+      scenarios:
+        tunnel-connects-and-routes:
+          - GIVEN: 设置页已配置隧道服务器地址（host 侧 serve 暴露的 https 地址）且保存了有效 tagged auth key
+          - WHEN: 隧道启动并完成入网
+          - THEN: 状态变为已连接并显示节点名，对该地址的配对、RPC 与流请求全部成功且流量经回环代理承载
+        tunnel-needs-key:
+          - GIVEN: 未保存 auth key 且本机无已注册节点的持久状态
+          - WHEN: 查看隧道状态
+          - THEN: 状态为需要 key，用户输入 key 保存后可立即重试连接
+        tunnel-idle-keeps-existing-paths:
+          - GIVEN: 隧道未连接或当前连接地址不是隧道服务器地址
+          - WHEN: 使用直连或私有服务连接
+          - THEN: 请求不经回环代理，行为与未集成隧道时一致
+  MODIFIED: {}
+  REMOVED: {}

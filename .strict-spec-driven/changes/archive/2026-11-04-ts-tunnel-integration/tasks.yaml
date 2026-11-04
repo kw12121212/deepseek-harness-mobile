@@ -1,0 +1,46 @@
+schema: strict-spec-driven/task-list/v2
+schema_version: 2
+artifact_type: task_list
+schema_file: templates/strict-spec-driven/schemas/task-list.yaml
+change: ts-tunnel-integration
+sections:
+  Implementation:
+    impl-loopback-package:
+      text: loopback 包：Socks5Dialer/tlsConnect/layerTls（端点识别）/Socks5TlsConnector/UpstreamConnector + LoopbackProxy（令牌前缀、在役 socket 清点、分块即发、Transfer-Encoding 响应透传），新增 Upgrade 透传分支（WebSocket 升级请求头原样转发、响应不滤头不注 close、状态行后字节泵）。
+      status: complete
+    impl-tunnel-package:
+      text: tunnel 包：TunnelTypes（四态/SocksEndpoint/NetSnapshot/dsh- 主机名）、TunnelConfigStore（SharedPreferences，无默认地址）、GoLayer（gomobile 工厂 + NetworkInterface 快照 + 默认路由注入）、TunnelManager（@Volatile 状态 + onChange，ensureUp 幂等/connectWithKey/restart/onNetworkChanged/入网成功清 key）、TunnelIntegration（进程内装配 + TunnelRoutes 映射翻转）。
+      status: complete
+    impl-transport-rewrite:
+      text: 传输接入单一改写点：HarnessTransport.transportRequest 入口与 Direct/Bridge 两传输的 WS URL 构造经 TunnelRoutes.rewrite；Origin/Host 头保持真实 origin；不改连接保存与凭据语义。
+      status: complete
+    impl-settings-and-bootstrap:
+      text: MainActivity：设置 sheet 新增「隧道」段/对话框（四态显示、节点名、服务器地址保存、重输 key、重启按钮，程序化 Views 与现有体系同构）；启动 worker 对当前 serverUrl 等于隧道服务器地址时后台 ensureUp，状态变化驱动提示。
+      status: complete
+    impl-unit-tests:
+      text: JVM 单测：LoopbackProxy 协议级（假上游连接器：GET/POST 转发与头纪律、令牌 403、chunked 透传、Upgrade 透传含 101+后续帧、stop 清 socket）；TunnelManager 状态机（假 GoNode/Proxy 工厂：首启 needs-key、up 成功 connected+清 key、幂等早退、up 失败分态、loopback 失败回滚、restart）。
+      status: complete
+  Testing:
+    test-unit-new:
+      text: 新增 JVM 单测全绿（LoopbackProxy 协议级含 Upgrade 透传；TunnelManager 状态机）。
+      status: complete
+      command: cd /c/zw/Code/deepseek-harness-mobile && ./gradlew :app:testDebugUnitTest --rerun
+    test-full-regression:
+      text: 完整项目回归（config.yaml 声明命令 + tstunnel 模块）。
+      status: complete
+      command: cd /c/zw/Code/deepseek-harness-mobile && ./gradlew :app:assembleDebug :app:testDebugUnitTest --rerun && export PATH="/c/Users/wx766/.local/opt/go1.27.3/bin:/c/msys2/mingw64/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/go/bin:/c/Users/wx766/bin:/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/wx766/bin:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/cmd:/c/Program Files/nodejs:/c/Program Files/Docker/Docker/resources/bin:/c/Program Files/dotnet:/c/Program Files/Tailscale:/c/Users/wx766/AppData/Local/Programs/Python/Python310/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python310:/c/tools/maven-mvnd-1.0.2-windows-amd64/bin:/c/tools/apache-maven-3.9.16/bin:/c/Users/wx766/AppData/Local/Programs/Python/Python311/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python311:/c/java/jdk-25.0.3+9/bin:/c/Users/wx766/.cargo/bin:/c/Users/wx766/AppData/Local/Microsoft/WindowsApps:/c/Users/wx766/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/wx766/.lmstudio/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/.local/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe:/tmp/codepilot-shadow-claude-yh7qus/AppData/Local/Microsoft/WinGet/Packages/BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe/ripgrep-15.1.0-x86_64-pc-windows-msvc:/c/ProgramData/wx766/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Programs/CodeBuddy CN/bin:/c/Users/wx766/.bun/bin:/c/Users/wx766/AppData/Local/Programs/Zed/bin:/c/Users/wx766/AppData/Local/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1.1-full_build/bin:/c/Users/wx766/AppData/Local/Android/Sdk/platform-tools:/c/Users/wx766/AppData/Local/Android/Sdk/emulator:/c/Users/wx766/AppData/Local/Android/Sdk/cmdline-tools/latest/bin:/c/Users/wx766/AppData/Local/Programs/CatPawAI/bin:/c/Users/wx766/AppData/Local/Programs/Antigravity IDE/bin:/c/Users/wx766/.dotnet/tools:/c/Users/wx766/AppData/Local/Programs/windows-bridge:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Runtimes/6.4.1/usr/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/msys2/mingw64/bin:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ripgrep:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ugrep:/c/Program Files/nodejs:/usr/bin/vendor_perl:/usr/bin/core_perl" && (cd bridge && go vet ./... && go test -race -count=1 ./...) && (cd tstunnel && go vet ./... && go test -count=1 ./...)
+  Verification:
+    verify-emulator-e2e:
+      text: 模拟器验证（用户指示本轮模拟器，真机补验遗留）：隧道设置页配置后 Connected（状态/节点名截图）；WS 升级请求经隧道三层到达 bridge 并带回真实 404（logcat 101 检查证据）证明 Upgrade 透传链路；HTTP 改写路径由 JVM TransportTunnelRouteTest 证明；App 内对话框配对未完成自动化取证（uiautomator 不稳定 + 配对码 10 分钟时效），如实记录为真机补验第一项，不声称通过——见 docs/qa/ts-tunnel-integration/validation.md §4。
+      status: complete
+    verify-ready:
+      text: strict-spec-cli ready ts-tunnel-integration 无阻断。
+      status: complete
+      command: strict-spec-cli ready ts-tunnel-integration
+    verify-change:
+      text: strict-spec-cli verify ts-tunnel-integration 通过。
+      status: complete
+      command: strict-spec-cli verify ts-tunnel-integration
+testing_gates:
+  validation_task: test-full-regression
+  unit_test_task: test-unit-new

@@ -1,0 +1,21 @@
+schema: strict-spec-driven/delta-spec/v1
+schema_version: 1
+artifact_type: delta_spec
+schema_file: templates/strict-spec-driven/schemas/delta-spec.yaml
+target_spec: bridge-private-transport
+operations:
+  ADDED:
+    upstream-version-gate:
+      strength: MUST
+      statement: dshbridge 启动 serve 时必须校验上游 dsh 版本与声明的兼容版本精确一致；不一致或探测不到时拒绝启动并输出包含实际与所需版本的明确原因，绝不以未校验状态对外提供配对或转发入口。
+      scenarios:
+        serve-refuses-incompatible-upstream:
+          - GIVEN: 状态目录配置的上游 dsh 运行非兼容版本
+          - WHEN: 执行 dsh-bridge serve
+          - THEN: 进程拒绝启动，错误信息包含上游实际版本与所需兼容版本
+        serve-refuses-unknown-upstream:
+          - GIVEN: 上游版本无法探测（请求失败或落地页不含版本对象）
+          - WHEN: 执行 dsh-bridge serve
+          - THEN: 进程拒绝启动并说明无法确定上游版本，按不兼容处理
+  MODIFIED: {}
+  REMOVED: {}

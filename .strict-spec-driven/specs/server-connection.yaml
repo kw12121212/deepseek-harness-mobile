@@ -34,3 +34,43 @@ requirements:
         - GIVEN: 应用已连接且存在当前会话
         - WHEN: 强制停止后重新打开应用
         - THEN: 无需重新配置即恢复服务器配置、登录状态与当前会话
+  dsh-version-lock:
+    strength: MUST
+    statement: 直接连接模式必须在建立连接前校验上游 dsh 版本与声明的兼容版本精确一致：版本不一致或无法确定时，以包含实际版本与所需版本的明确提示拒绝连接，不保存服务器配置，绝不静默继续。
+    scenarios:
+      direct-mismatch-rejected:
+        - GIVEN: 用户在连接对话框输入运行非兼容版本 dsh 的服务器地址
+        - WHEN: 点击测试并连接且凭据交换成功
+        - THEN: 显示包含服务器实际 dsh 版本与应用所需版本的明确提示，连接不建立、配置不保存
+      direct-undetectable-rejected:
+        - GIVEN: 服务器的 dsh 版本信息无法获得（如落地页不含版本对象）
+        - WHEN: 点击测试并连接
+        - THEN: 按不兼容处理并给出明确提示，连接不建立
+  embedded-tailnet-tunnel:
+    strength: MUST
+    statement: 应用必须提供内嵌 tailnet 隧道作为可选承载：配置隧道服务器地址与 tagged auth key 后，隧道按需启动并以四态（连接中/已连接含节点名/需要 key/失败含原因）呈现；隧道在役时对隧道服务器地址的全部请求经本机回环代理出站，未连接或地址不匹配时行为与无隧道完全一致。
+    scenarios:
+      tunnel-connects-and-routes:
+        - GIVEN: 设置页已配置隧道服务器地址（host 侧 serve 暴露的 https 地址）且保存了有效 tagged auth key
+        - WHEN: 隧道启动并完成入网
+        - THEN: 状态变为已连接并显示节点名，对该地址的配对、RPC 与流请求全部成功且流量经回环代理承载
+      tunnel-needs-key:
+        - GIVEN: 未保存 auth key 且本机无已注册节点的持久状态
+        - WHEN: 查看隧道状态
+        - THEN: 状态为需要 key，用户输入 key 保存后可立即重试连接
+      tunnel-idle-keeps-existing-paths:
+        - GIVEN: 隧道未连接或当前连接地址不是隧道服务器地址
+        - WHEN: 使用直连或私有服务连接
+        - THEN: 请求不经回环代理，行为与未集成隧道时一致
+  tailscale-token-profile:
+    strength: MUST
+    statement: 私有服务连接资料可携带 tailscale 参数（serve 域名 origin 与 tagged auth key 作为参数字段）：导入资料即完成隧道入网准备且无需任何交互式登录；auth key 不得出现在日志、错误信息或界面回显中。
+    scenarios:
+      import-arms-tunnel:
+        - GIVEN: 用户导入含 tailscale 字段（origin 与有效 tagged auth key）的私有服务连接资料并输入配对码
+        - WHEN: 确认配对
+        - THEN: 隧道配置被写入并以该 key 非交互入网，配对与后续请求经隧道完成
+      key-never-echoed:
+        - GIVEN: 资料中携带 auth key
+        - WHEN: 导入、配对、隧道连接或设置页查看
+        - THEN: key 不出现在日志、错误信息或界面明文回显中（设置页输入为密文）

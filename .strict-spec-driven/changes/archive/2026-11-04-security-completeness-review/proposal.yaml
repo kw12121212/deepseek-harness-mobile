@@ -1,0 +1,22 @@
+schema: strict-spec-driven/change-proposal/v1
+schema_version: 1
+artifact_type: change_proposal
+schema_file: templates/strict-spec-driven/schemas/change-proposal.yaml
+change:
+  id: security-completeness-review
+  status: proposed
+summary:
+  what:
+    - 里程碑收口评审：安全边界清单（serve-only 暴露与无 --tcp/Funnel 旁路、每帧凭据校验在 serve 形态下成立、撤销即时性、auth key 与设备 token 的存储/日志/备份边界、Host/XFF 取址与限流在 127.0.0.1 对端形态下的正确性、未认证端点空 404），凭据与 token 处理审计，对 DSH Web parity 的功能对照（实时流/审批问答/导出/后台通知在 tailscale 链路下的行为，未覆盖与有意不同项显式列出）；每项结论指向具体证据文件，发现的问题开后续变更不在本变更顺手修。
+  why:
+    - milestone done_criteria：安全与功能完整性评审报告与 QA 证据落 docs/qa/，未覆盖项显式列出；整条链路经此收口。
+scope:
+  in:
+    - docs/qa/security-completeness-review/security-boundary.md（安全边界清单）与 functional-parity.md（功能对照）；必要时 harness-feature-parity.md 的差距补记。
+  out:
+    - 不顺手修任何发现的问题（开后续变更）；不改代码与规格；不做新的真机验证（引用既有证据，缺证据项如实列为未覆盖）。
+unchanged_behavior:
+  - 零代码与规格改动；纯评审文档与证据索引。
+roadmap:
+  milestone: tailscale-private-transport
+  planned_change: security-completeness-review

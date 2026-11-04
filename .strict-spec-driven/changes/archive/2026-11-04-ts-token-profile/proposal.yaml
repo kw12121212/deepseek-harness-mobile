@@ -1,0 +1,22 @@
+schema: strict-spec-driven/change-proposal/v1
+schema_version: 1
+artifact_type: change_proposal
+schema_file: templates/strict-spec-driven/schemas/change-proposal.yaml
+change:
+  id: ts-token-profile
+  status: proposed
+summary:
+  what:
+    - 私有服务连接资料 JSON 增加可选 tailscale 字段：{origin（serve 的 ts 域名 https 地址）, authKey（tagged auth key，token 参数而非交互登录——用户硬性要求）, hostname?（节点名约定）}。导入（配对对话框解析）即写入隧道配置（serverBase/authKey/hostname），配对 worker 先 ensureUp 再发 pair，使配对本身经隧道完成；设置页既有 key 输入改为密文不回显；needs-key 状态引导到设置页（既有）。token 卫生：auth key 不入日志（既有 present/空）、不进错误信息与崩溃上报、不进自动备份（allowBackup=false 全局）、UI 不回显完整 key。
+  why:
+    - milestone：连接资料必须携带 token 参数完成非交互入网，导入即用；auth key 来源为操作者在 Tailscale 管理台生成的专用 tag key（如 tag:dsh-mobile，可单独吊销）。bridge 代发 key（需存 Tailscale API token）明确不在范围。
+scope:
+  in:
+    - app/src/main/java/.../BridgePairingClient.kt（TailscaleParams + parseConfig 扩展 + applyTo(store)）；BridgeSetupDialog.kt（导入写入 + worker ensureUp 先行）；MainActivity 隧道对话框 key 输入密文化；JVM 单测（tailscale 字段解析/校验/写入/缺省 null）；docs/qa/ts-token-profile/。
+  out:
+    - 不做 dsh-bridge 集成 Tailscale API 代发 key；不做 UI 生成/粘贴 key 的额外流程页（设置页已有）；不改 bridge 与 tstunnel；不做连接资料加密存储形态变化（key 沿用入网成功即清的既有语义）。
+unchanged_behavior:
+  - 无 tailscale 字段的连接资料解析与配对行为与现状完全一致；设备 token/随机路由/版本锁/隧道状态机不变；auth key 入网成功即清（既有设计）；direct 模式不受影响。
+roadmap:
+  milestone: tailscale-private-transport
+  planned_change: ts-token-profile

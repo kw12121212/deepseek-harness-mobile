@@ -1,0 +1,22 @@
+schema: strict-spec-driven/change-proposal/v1
+schema_version: 1
+artifact_type: change_proposal
+schema_file: templates/strict-spec-driven/schemas/change-proposal.yaml
+change:
+  id: dsh-version-lock
+  status: proposed
+summary:
+  what:
+    - 把 dsh 版本契约从提示文案升级为真锁：app 与 bridge 各自在单一常量处声明兼容版本 0.2.0-rc.2，连接建立前用已认证 HTTP GET 上游根路径解析 __DSH_BOOT__ 的 release.version（本机实测 dsh 0.2.1-rc.2 的落地页含该对象，未认证请求 401）；版本不等于 0.2.0-rc.2 或探测不到时明确拒绝——bridge 拒绝启动 serve 并输出实际与需要的版本，app 直连模式在「测试并连接」时显示引导文案且不保存不连接。app 单测覆盖版本解析/不匹配/缺失分支，bridge go test 覆盖探测、匹配放行、不匹配拒绝、版本缺失拒绝分支。
+  why:
+    - 现状 App 只有提示文案（MainActivity「此版本需要 dsh 0.2.0-rc.2 的核心接口」仅在流错误后被动 Toast），bridge 对上游版本零校验；milestone 要求两条路径对不兼容上游有明确的拒绝或提示行为并有测试。锁定语义用户 2026-11-03 已定：精确锁已验证版本，升级一律走显式变更重验，探测不到按不兼容处理（fail closed）。
+scope:
+  in:
+    - app：版本契约常量与 __DSH_BOOT__ 解析（新文件）、连接流程校验与拒绝文案、单测；bridge：internal/upstream 版本探测 + 兼容版本常量 + serve 启动校验、go 单测；bridge/README.md 版本表述更新；docs/qa/dsh-version-lock/ 真机证据。
+  out:
+    - 不放行 0.2.1-rc.2 或任何其他版本（升级走显式变更）；不改 RPC 白名单（探测用现有 HTTP GET /，不经白名单）；不改 bridge 外层 protocolVersion；不做版本协商或多版本适配；不改 AGENTS.md（无既有版本表述需要同步）。
+unchanged_behavior:
+  - 版本匹配时的连接、配对、转发、导出与流行为与现状完全一致；配对码/设备凭据/随机路由机制不变；direct 模式的 HTTPS 约束与地址解析不变；探测仅新增于连接建立之前，不影响既有已连接会话。
+roadmap:
+  milestone: tailscale-private-transport
+  planned_change: dsh-version-lock

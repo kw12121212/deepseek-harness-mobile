@@ -1,0 +1,49 @@
+schema: strict-spec-driven/question-list/v1
+schema_version: 1
+artifact_type: question_list
+schema_file: templates/strict-spec-driven/schemas/question-list.yaml
+change: dsh-version-lock
+open: []
+resolved:
+  - id: lock-semantics
+    question: 版本锁定的兼容语义：精确锁单一版本，还是最低兼容范围放行？
+    context: 影响两条路径的拒绝逻辑与未来升级流程（规格语义、实现文件、测试断言）。milestone intake 已记录该问题并给出推荐。
+    answer: 精确锁已验证版本 0.2.0-rc.2：不等于常量即拒绝，rc→rc、rc→正式版一律走显式变更重验；探测不到版本按不兼容处理（fail closed）。（用户 2026-11-03 采纳，milestone notes 决策记录）
+    status: resolved
+    kind: requirement
+    answered_by: human
+  - id: requirement-problem
+    question: What is concretely going wrong today, and for whom?
+    context: 'Why this is asked: the change is planned against a need, and the need lives only with the requester. A "problem" here means what someone does or suffers today — not a feature that is missing. If the answer names a button, a field, a page, or an endpoint, it is a solution, and the underlying problem is still unstated. What a sufficient answer contains: who is affected, what they do today instead, and how often. Worked example: "every Monday one person spends forty minutes copying order rows into a spreadsheet to send the weekly report". What it changes: this becomes the proposal''s why, and it decides whether the change is worth making.'
+    answer: App 仅在流错误后被动 Toast 版本提示，bridge 对上游版本零校验：不兼容上游（如本机 0.2.1-rc.2）可以被连接并产生难以归类的接口失败。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-interpretation
+    question: Which reading of the request is intended, where more than one is possible?
+    context: 'Why this is asked: a short request usually admits several readings, and building the wrong one is indistinguishable from building nothing. What a sufficient answer contains: the reading that is meant, stated plainly enough to rule the others out — or a statement that only one reading exists and what it is. Worked example: "export means the version sent to the manager, not the one I read myself". What it changes: this fixes the scope boundary before any code is written, and settles disputes about what was asked for.'
+    answer: 两条路径连接建立前的强制校验：bridge serve 启动拒绝 + app 直连「测试并连接」拒绝文案；探测用已认证 GET / 解析 __DSH_BOOT__.release.version，不加白名单 RPC。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-non-goals
+    question: What must explicitly not change?
+    context: 'Why this is asked: the requester knows which nearby behavior other people depend on, and the agent does not. A "non-goal" is something the change must leave alone even though it sits close to the work. What a sufficient answer contains: the behavior, setting, or output that must survive untouched, and who relies on it. Worked example: "do not change the saved filters — several people rely on their own". What it changes: these become the proposal''s unchanged_behavior items, which review checks the finished result against.'
+    answer: 不放行其他版本、不做版本协商、不改 RPC 白名单与 protocolVersion、不改 AGENTS.md（无既有版本表述）、不影响版本匹配时的既有行为。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-outcome
+    question: What observable difference proves the problem is solved?
+    context: 'Why this is asked: without a success condition, nobody can tell afterwards whether the change worked. "Observable" means someone outside the system can check it without reading the code. What a sufficient answer contains: what a person will see, or no longer have to do, once this is done. Worked example: "the report is in the manager''s inbox on Monday morning without anyone assembling it". What it changes: this becomes the delta spec''s scenarios and the acceptance evidence at review time.'
+    answer: 对 0.2.1-rc.2 上游：bridge serve 拒绝启动并列出版本、app 直连显示拒绝文案不保存；对 0.2.0-rc.2（单测假上游）：正常放行且行为与现状一致；真机证据落 docs/qa/dsh-version-lock/。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-trigger
+    question: Why now — what forced this?
+    context: 'Why this is asked: work that nothing forced is the work most often thrown away later. This question catches a request that sounds reasonable but has no real driver behind it. What a sufficient answer contains: the concrete event, deadline, incident, or cost that made this surface now, or an honest statement that nothing did. Worked example: "the report was missed last month and it was raised with the team". What it changes: a change with no trigger is a candidate for deferral, and the answer is weighed at review before archive.'
+    answer: milestone 要求「dsh 版本契约从提示文案升级为可校验的锁定」且两条路径都要有明确拒绝行为与测试；锁定语义决策已于 2026-11-03 落档，阻塞解除。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap

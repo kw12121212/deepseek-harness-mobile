@@ -1,0 +1,49 @@
+schema: strict-spec-driven/question-list/v1
+schema_version: 1
+artifact_type: question_list
+schema_file: templates/strict-spec-driven/schemas/question-list.yaml
+change: bridge-tailnet-serve
+open: []
+resolved:
+  - id: bridge-whois-layer
+    question: 经 tailscale serve 暴露 dshbridge 后，是否在设备 token 体系之上再叠加 Tailscale WhoIs 白名单校验？
+    context: 影响 bridge http/stream 入口校验改动量与运维配置项（allowed_logins/allowed_tags）。经 serve 转发后对端恒为 127.0.0.1、真实地址在 X-Forwarded-For；本变更核对结论：bridge 凭据校验按设备 token 与来源无关、无地址日志、pair 限流收敛为 127.0.0.1 单桶（全局 10 次/分，更严格而非削弱），不构成「输入被削弱」的针对性修正触发条件。该问题属实现与技术标准范围，不影响提案范围本身。
+    answer: 不叠加 WhoIs 白名单层：设备 token 仍是唯一应用层凭据，tailnet 边界交给 ACL + serve；评审若发现 serve 转发削弱现有凭据校验输入只做针对性修正，不引入第二套身份体系。（用户 2026-11-03 采纳，见 milestone notes）
+    status: resolved
+    kind: technical
+    answered_by: human
+  - id: requirement-problem
+    question: What is concretely going wrong today, and for whom?
+    context: 'Why this is asked: the change is planned against a need, and the need lives only with the requester. A "problem" here means what someone does or suffers today — not a feature that is missing. If the answer names a button, a field, a page, or an endpoint, it is a solution, and the underlying problem is still unstated. What a sufficient answer contains: who is affected, what they do today instead, and how often. Worked example: "every Monday one person spends forty minutes copying order rows into a spreadsheet to send the weekly report". What it changes: this becomes the proposal''s why, and it decides whether the change is worth making.'
+    answer: 当前 dshbridge 私有连接依赖公网入口（公网域名、证书、反代、防火墙，README 明确不由仓库提供），host 运维者要自备并维护一整套公网暴露设施；缺少一条经用户个人 tailnet 的私有直达链路。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-interpretation
+    question: Which reading of the request is intended, where more than one is possible?
+    context: 'Why this is asked: a short request usually admits several readings, and building the wrong one is indistinguishable from building nothing. What a sufficient answer contains: the reading that is meant, stated plainly enough to rule the others out — or a statement that only one reading exists and what it is. Worked example: "export means the version sent to the manager, not the one I read myself". What it changes: this fixes the scope boundary before any code is written, and settles disputes about what was asked for.'
+    answer: 只做 host 侧 tailscale serve --https 暴露：serve/status/reset 运维脚本 + 确定性脚本测试 + 部署文档段落 + docs/qa 真机验证证据；dshbridge 进程保持回环监听、行为零改动。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-non-goals
+    question: What must explicitly not change?
+    context: 'Why this is asked: the requester knows which nearby behavior other people depend on, and the agent does not. A "non-goal" is something the change must leave alone even though it sits close to the work. What a sufficient answer contains: the behavior, setting, or output that must survive untouched, and who relies on it. Worked example: "do not change the saved filters — several people rely on their own". What it changes: these become the proposal''s unchanged_behavior items, which review checks the finished result against.'
+    answer: 不改 bridge Go 代码与 RPC/stream 行为；不叠加 WhoIs 白名单层（用户 2026-11-03 已决策）；不新增 100.x tailnet 绑定；不做 app 侧 tsnet 隧道、连接资料 token 参数、dsh 版本锁定（各自独立 planned change）；不做 Funnel 与任何公网直接暴露。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-outcome
+    question: What observable difference proves the problem is solved?
+    context: 'Why this is asked: without a success condition, nobody can tell afterwards whether the change worked. "Observable" means someone outside the system can check it without reading the code. What a sufficient answer contains: what a person will see, or no longer have to do, once this is done. Worked example: "the report is in the manager''s inbox on Monday morning without anyone assembling it". What it changes: this becomes the delta spec''s scenarios and the acceptance evidence at review time.'
+    answer: 在已登录 tailnet 的 host 上执行 bridge/scripts/tailscale-serve.sh 即把回环 dshbridge 经 https://<节点域名>:<serve端口> 暴露；已配对设备经该 https 地址完成一次配对与一次 RPC，stream 路由 WSS 长连接经 serve 转发稳定收帧；脚本测试全绿；验证证据落 docs/qa/tailnet-serve/。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-trigger
+    question: Why now — what forced this?
+    context: 'Why this is asked: work that nothing forced is the work most often thrown away later. This question catches a request that sounds reasonable but has no real driver behind it. What a sufficient answer contains: the concrete event, deadline, incident, or cost that made this surface now, or an honest statement that nothing did. Worked example: "the report was missed last month and it was raised with the team". What it changes: a change with no trigger is a candidate for deferral, and the answer is weighed at review before archive.'
+    answer: milestone tailscale-private-transport 的落地顺序明确 host 侧 serve 暴露先行——否则 app 侧 ts-embed spike 无靶子；前置决策 bridge-whois-layer 已于 2026-11-03 由用户确认采纳，本变更不再有未决阻塞。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap

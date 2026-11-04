@@ -1,0 +1,21 @@
+schema: strict-spec-driven/delta-spec/v1
+schema_version: 1
+artifact_type: delta_spec
+schema_file: templates/strict-spec-driven/schemas/delta-spec.yaml
+target_spec: server-connection
+operations:
+  ADDED:
+    tailscale-token-profile:
+      strength: MUST
+      statement: 私有服务连接资料可携带 tailscale 参数（serve 域名 origin 与 tagged auth key 作为参数字段）：导入资料即完成隧道入网准备且无需任何交互式登录；auth key 不得出现在日志、错误信息或界面回显中。
+      scenarios:
+        import-arms-tunnel:
+          - GIVEN: 用户导入含 tailscale 字段（origin 与有效 tagged auth key）的私有服务连接资料并输入配对码
+          - WHEN: 确认配对
+          - THEN: 隧道配置被写入并以该 key 非交互入网，配对与后续请求经隧道完成
+        key-never-echoed:
+          - GIVEN: 资料中携带 auth key
+          - WHEN: 导入、配对、隧道连接或设置页查看
+          - THEN: key 不出现在日志、错误信息或界面明文回显中（设置页输入为密文）
+  MODIFIED: {}
+  REMOVED: {}

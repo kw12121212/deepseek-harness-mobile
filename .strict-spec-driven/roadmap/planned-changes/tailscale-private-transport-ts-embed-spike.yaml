@@ -5,7 +5,7 @@ schema_file: ../../templates/strict-spec-driven/schemas/planned-change.yaml
 planned_change:
   id: ts-embed-spike
   milestone: tailscale-private-transport
-status: planned
+status: complete
 summary: 验证 spike：复制 tstunnel Go 薄包装与 AAR 构建脚本，真机起 tagged tsnet 节点经 serve 访问 dshbridge，完成一次配对与 RPC
 details: 蓝本为 ../private-content-assistant/android/tstunnel（源自 ../mobile-manage）：Go 薄包装 tailscale.com/tsnet 经 gomobile bind 出 AAR，gomobile/gobind 版本钉在 go.mod tool 指令，-androidapi 26 与 16KB page size ldflags 照抄上游，llvm-strip 剥离；AAR 只由脚本构建、输出目录 gitignore、不入库。spike 在真机（非模拟器）上：用 tag:dsh-mobile 的 tagged auth key 起 tsnet 节点 → Up → 经 host 的 serve 入口访问 dshbridge → 走完一次 pair 与一条白名单 RPC。spike 不通过则停止本里程碑后续实现，回到暴露方式重新讨论（沿 private-content-assistant 的 spike-first 决策）。本变更只验证连通与身份，不做 UI。
 depends_on:

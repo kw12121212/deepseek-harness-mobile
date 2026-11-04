@@ -5,7 +5,7 @@ schema_file: ../../templates/strict-spec-driven/schemas/planned-change.yaml
 planned_change:
   id: ts-tunnel-integration
   milestone: tailscale-private-transport
-status: planned
+status: complete
 summary: App 集成内嵌隧道：TunnelManager 状态机、LoopbackProxy 回环网络栈、隧道设置页（状态/节点名/服务器地址/重输 key）
 details: 按 private-content-assistant 已验证形态落地：TunnelManager 在任何 tsnet 启动前注入 Java NetworkInterface 快照（SetInterfacesJSON，AltAddrs 非 nil）与默认路由接口名以绕过 SELinux netlink 禁令；XDG_CACHE_HOME 指向 App 私有缓存由 Go 侧 NewNode 处理；NewNode(hostname, dir, authKey) → Start → 后台线程 Up → LoopbackProxy；ensureUp 幂等且进程内单例，节点状态持久化在 filesDir，强杀重开免 key 重连。网络栈约束：HttpURLConnection 不能走隧道、不能解析 MagicDNS，全部客户端请求基地址改为 127.0.0.1 回环端口经 LoopbackProxy 出站——dshbridge 直连/私有两条现有路径的传输层要接入该基地址模型。状态机 starting/connected/needs-key/failed 驱动设置页（UI 按 AGENTS.md 交 agy 出稿、父代理真机验收）。不常驻前台服务，按需启动。
 depends_on:

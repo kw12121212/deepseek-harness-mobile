@@ -1,0 +1,32 @@
+schema: strict-spec-driven/main-tech/v1
+schema_version: 1
+artifact_type: main_tech
+schema_file: templates/strict-spec-driven/schemas/main-tech.yaml
+standard:
+  id: bridge-tailnet-exposure
+  title: dshbridge tailnet 暴露边界
+  category: security
+rules:
+  only-serve-https:
+    strength: MUST
+    statement: dshbridge 对 tailnet 的暴露只能经 tailscale serve --https 反代到回环监听；tailscale serve 的 --tcp、--tls-terminated-tcp 与 Funnel 形态不得占用 dshbridge 暴露端口。
+    rationale: 这些 serve 形态不写 X-Forwarded-For，远端请求对端呈现为 127.0.0.1，被当作本机请求，等于绕过传输边界假设；serve --https 写入真实 tailnet 地址于 X-Forwarded-For 并承担 TLS 与 tailnet 准入。
+    enforcement:
+      method: test
+    examples:
+      good:
+        - tailscale serve --bg --https=3090 http://127.0.0.1:3090
+      bad:
+        - tailscale serve --bg --tls-terminated-tcp=3090
+  serve-script-port-gate:
+    strength: MUST
+    statement: tailscale-serve.sh 写入任何 Serve 配置前必须解析 tailscale serve status --json 判定目标端口状态，仅在端口空闲或配置确属本服务时写入；发现 TCP 转发、明文 HTTP serve、Funnel、前台会话或其他服务占用即拒绝并保持零修改，reset 同样只移除确属本服务的配置。
+    rationale: 端口状态机是安全铁律的自动化执行点，防止脚本覆盖他人配置或放行被禁止的转发形态。
+    enforcement:
+      method: test
+  loopback-listen-retained:
+    strength: MUST
+    statement: serve 部署形态下 dshbridge 进程必须保持仅回环 IP 监听并以 --behind-tls-proxy 运行，--public-origin 指向 https://<节点 tailnet 域名>:<serve端口>；不得为 tailnet 暴露新增 100.x 网卡绑定或放宽明文监听约束，也不得经 ssh -L 等不写 X-Forwarded-For 的主机侧隧道把回环端口转出。
+    rationale: 回环监听是最严格边界，--behind-tls-proxy 是 bridge 既有校验分支；100.x 绑定让进程直接面对 tailnet 流量且无收益；主机侧隧道（ssh -L、端口转发）与被禁的 serve 形态同害——不写 X-Forwarded-For 的本机转发让远端请求被当作本机请求，此形态无法由脚本检测，由评审与部署文档约束。
+    enforcement:
+      method: review

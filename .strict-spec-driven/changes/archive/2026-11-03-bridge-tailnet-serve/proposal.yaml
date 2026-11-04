@@ -1,0 +1,22 @@
+schema: strict-spec-driven/change-proposal/v1
+schema_version: 1
+artifact_type: change_proposal
+schema_file: templates/strict-spec-driven/schemas/change-proposal.yaml
+change:
+  id: bridge-tailnet-serve
+  status: proposed
+summary:
+  what:
+    - dshbridge host 侧经 tailscale serve --https 暴露给个人 tailnet：新增 bridge/scripts/tailscale-serve.sh 运维脚本（serve/status/reset 三子命令，写入前用 tailscale serve status --json 检查目标端口，拒绝 serve --tcp、--tls-terminated-tcp、明文 HTTP serve、Funnel 与前台会话占用，只有空闲或本服务自己的 https 反代才写入），配确定性脚本测试（假 tailscale/curl/sudo 命令注入 PATH，参照 private-content-assistant 的 test-ops-scripts.sh 模式），并在 bridge/README.md 增加部署段落；真机验证 stream 路由的 WSS 长连接经 serve 转发稳定，证据落 docs/qa/tailnet-serve/。
+  why:
+    - tailscale-private-transport milestone 的落地顺序第一步：host 侧 serve 暴露先行，否则 app 侧 ts-embed spike 无靶子；这是取消公网入口依赖的第一块，dshbridge 继续只监听回环、由 serve 承担 TLS 与 tailnet 准入。
+scope:
+  in:
+    - bridge/scripts/tailscale-serve.sh 与其确定性测试；bridge/README.md 的 tailnet serve 部署段落（serve 部署形态：dsh-bridge serve --behind-tls-proxy 监听回环 + --public-origin 指向 https://<节点域名>:<serve端口>）；docs/qa/tailnet-serve/ 真机验证证据。
+  out:
+    - bridge Go 代码与 RPC/stream 行为不改；不叠加 WhoIs 白名单层（用户 2026-11-03 已决策，设备 token 仍是唯一应用层凭据）；不新增 100.x tailnet 绑定（保持回环监听）；app 侧 tsnet 隧道、连接资料 token 参数与 dsh 版本锁定（各自独立 planned change）。
+unchanged_behavior:
+  - RPC 白名单转发、配对/撤销生命周期、未知端点空 404、限流与凭据校验逻辑全部不变；bridge 仍只监听回环，公网暴露仍必须经 TLS；脚本核对结论：凭据校验按设备 token 与来源地址无关，bridge 无地址日志，pair 限流按 RemoteAddr 分桶在 serve 形态下收敛为 127.0.0.1 单桶（全局 10 次/分，更严格而非削弱），无需针对性代码修正。
+roadmap:
+  milestone: tailscale-private-transport
+  planned_change: bridge-tailnet-serve

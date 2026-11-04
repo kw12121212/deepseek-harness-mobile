@@ -1,0 +1,20 @@
+schema: strict-spec-driven/change-design/v1
+schema_version: 1
+artifact_type: change_design
+schema_file: templates/strict-spec-driven/schemas/change-design.yaml
+change: ts-token-profile
+approach:
+  - 扩展连接资料解析层：parseConfig 读可选 tailscale 对象并校验（origin 经 privateOrigin 强制 https ts 域名、authKey 非空且 ≤256、hostname 匹配 ^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$ 缺省由 store 生成），TailscaleParams.applyTo(store) 单点写入 serverBase/authKey/hostname；配对按钮 worker 内先 applyTo + TunnelIntegration.ensureUpFor（阻塞在 worker，映射翻转后 pair 的 transportRequest 自动经隧道），再发 pair。设置页 key 输入 inputType=textPassword 不回显；错误信息文案不携带 key。单测以假 store 断言写入与校验分支。
+decisions:
+  token-as-profile-parameter:
+    decision: token（tagged auth key）作为连接资料 JSON 的参数字段（tailscale.authKey）随资料导入，不做任何交互式登录流程。
+    rationale: 用户硬性要求；key 由操作者在管理台生成（专用 tag 可单独吊销），资料即完整交付物：origin/pairPath/隧道参数一次导入。
+  pair-through-tunnel-after-ensure:
+    decision: 配对 worker 顺序：applyTo(store) → ensureUp → pair；ensureUp 未达 Connected 仍继续 pair（直连尝试按既有失败文案呈现），隧道状态以设置页为准。
+    rationale: 阻塞等隧道再配对与 bootstrap 语义一致；不在配对路径引入新失败分支，失败信息保持既有文案集（均不含 key）。
+  key-hygiene:
+    decision: auth key 不写日志（present/空）、不进错误信息/崩溃上报、不进自动备份（manifest allowBackup=false 全局生效）、UI 密文不回显、入网成功即清（既有）。
+    rationale: 与设备 token 同标准（milestone 硬约束）；错误与日志面审计由单测+评审覆盖。
+alternatives: []
+risks:
+  - 资料 JSON 同时含 origin 与 tailscale.origin 两个地址：二者语义不同（pair 入口 vs 隧道目标），通常相同；校验各自独立，不一致时以 tailscale.origin 为隧道目标、origin 为 pair 入口，文档注明。

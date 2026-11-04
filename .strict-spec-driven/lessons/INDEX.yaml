@@ -1,10 +1,33 @@
 schema: strict-spec-driven/lessons-index/v2
 schema_version: 2
 artifact_type: lessons_index
-schema_file: ../schemas/lessons-index.yaml
-# Lessons record reusable engineering experience — a pitfall, a path that failed, or diagnostic
-# knowledge — that specs and technical standards deliberately exclude. Create them with
-# `strict-spec-cli lesson-create`; this index is rebuilt from the lesson files and is not
-# hand-edited. A lesson that becomes general enough to bind is promoted into a technical standard
-# rule and keeps its original text as the motivating context that rule omits.
-categories: {}
+schema_file: templates/strict-spec-driven/schemas/lessons-index.yaml
+categories:
+  coding:
+    file-renameto-files-move-48b8d2:
+      title: File.renameTo 不能覆盖已存在文件：原子写必须用 Files.move
+      status: active
+      occurrences: 1
+      path: .strict-spec-driven/lessons/coding/file-renameto-files-move-48b8d2.yaml
+    lesson-db0502:
+      title: 前置门禁必须区分「未认证」与「不满足」
+      status: active
+      occurrences: 1
+      path: .strict-spec-driven/lessons/coding/lesson-db0502.yaml
+    websocket-b4f0f5:
+      title: 隧道/代理类改写点要为 WebSocket 补双向字节泵
+      status: active
+      occurrences: 1
+      path: .strict-spec-driven/lessons/coding/websocket-b4f0f5.yaml
+  testing:
+    windows-host-bash-home-env-i-6063ff:
+      title: Windows host 上 bash 脚本确定性测试勿覆盖 HOME 或用 env -i
+      status: active
+      occurrences: 1
+      path: .strict-spec-driven/lessons/testing/windows-host-bash-home-env-i-6063ff.yaml
+  tooling:
+    gomobile-aar-androidtest-uselegacypackaging-340297:
+      title: gomobile AAR 进 androidTest 必须 useLegacyPackaging
+      status: active
+      occurrences: 1
+      path: .strict-spec-driven/lessons/tooling/gomobile-aar-androidtest-uselegacypackaging-340297.yaml

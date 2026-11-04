@@ -43,7 +43,7 @@ risks:
   - tailscale serve 对 WSS 长连接（stream 路由）的转发行为需真机验证，不成立则 stream 需要替代承载
   - 经 serve 转发后对端恒为 127.0.0.1、真实地址在 X-Forwarded-For：与 dshbridge 现有凭据校验、限流与日志的交互需重新评审
   - APK 体积预计增加约 21MB（arm64），tsnet 常驻内存上升
-status: proposed
+status: complete
 notes:
   - 安全铁律（沿自 private-content-assistant 的 security-boundary）：服务只能经 tailscale serve --https 暴露（它会写 X-Forwarded-For）；禁止 serve --tcp、--tls-terminated-tcp、Funnel、ssh -L 等不写该头的转发，否则远端请求会被当作 loopback 本机请求绕过身份校验
   - token 参数语义按参考项目落地：tstunnel NewNode(hostname, dir, authKey)，authKey 即 token；节点用专用 tag（如 tag:dsh-mobile），与其它项目的 tag 分开可单独吊销

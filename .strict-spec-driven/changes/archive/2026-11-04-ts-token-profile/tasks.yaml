@@ -1,0 +1,40 @@
+schema: strict-spec-driven/task-list/v2
+schema_version: 2
+artifact_type: task_list
+schema_file: templates/strict-spec-driven/schemas/task-list.yaml
+change: ts-token-profile
+sections:
+  Implementation:
+    impl-profile-parse:
+      text: BridgePairingClient：TailscaleParams(origin, authKey, hostname?) + parseConfig 解析可选 tailscale 对象（校验：origin 经 privateOrigin、authKey 非空≤256、hostname 模式或缺省）+ applyTo(store) 写入 serverBase/authKey/hostname；BridgePairingConfig 增加 tailscale 字段（缺省 null，既有行为不变）。
+      status: complete
+    impl-pair-flow:
+      text: BridgeSetupDialog：config.tailscale 非空时 worker 先 applyTo(TunnelIntegration.manager().config) + ensureUpFor(tailscale.origin)，再发 pair；MainActivity 隧道对话框 keyInput inputType 密文（不回显），needs-key 文案引导到该输入。
+      status: complete
+    impl-tests:
+      text: JVM 单测：tailscale 字段解析（合法→参数齐、缺省→null、origin 非 https 拒、key 空拒、key 超长拒、hostname 非法拒）+ applyTo 假 store 写入断言 + 无 tailscale 字段时现有解析回归。
+      status: complete
+  Testing:
+    test-unit:
+      text: JVM 单测全绿（含新增 tailscale 字段测试）。
+      status: complete
+      command: cd /c/zw/Code/deepseek-harness-mobile && ./gradlew :app:testDebugUnitTest --rerun
+    test-full-regression:
+      text: 完整项目回归（config.yaml 命令 + tstunnel）。
+      status: complete
+      command: cd /c/zw/Code/deepseek-harness-mobile && ./gradlew :app:assembleDebug :app:testDebugUnitTest --rerun && export PATH="/c/Users/wx766/.local/opt/go1.27.3/bin:/c/msys2/mingw64/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/go/bin:/c/Users/wx766/bin:/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/wx766/bin:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/cmd:/c/Program Files/nodejs:/c/Program Files/Docker/Docker/resources/bin:/c/Program Files/dotnet:/c/Program Files/Tailscale:/c/Users/wx766/AppData/Local/Programs/Python/Python310/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python310:/c/tools/maven-mvnd-1.0.2-windows-amd64/bin:/c/tools/apache-maven-3.9.16/bin:/c/Users/wx766/AppData/Local/Programs/Python/Python311/Scripts:/c/Users/wx766/AppData/Local/Programs/Python/Python311:/c/java/jdk-25.0.3+9/bin:/c/Users/wx766/.cargo/bin:/c/Users/wx766/AppData/Local/Microsoft/WindowsApps:/c/Users/wx766/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/wx766/.lmstudio/bin:/c/Users/wx766/AppData/Roaming/npm:/c/Users/wx766/.local/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe:/tmp/codepilot-shadow-claude-yh7qus/AppData/Local/Microsoft/WinGet/Packages/BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe/ripgrep-15.1.0-x86_64-pc-windows-msvc:/c/ProgramData/wx766/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Programs/CodeBuddy CN/bin:/c/Users/wx766/.bun/bin:/c/Users/wx766/AppData/Local/Programs/Zed/bin:/c/Users/wx766/AppData/Local/GitHubDesktop/bin:/c/Users/wx766/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1.1-full_build/bin:/c/Users/wx766/AppData/Local/Android/Sdk/platform-tools:/c/Users/wx766/AppData/Local/Android/Sdk/emulator:/c/Users/wx766/AppData/Local/Android/Sdk/cmdline-tools/latest/bin:/c/Users/wx766/AppData/Local/Programs/CatPawAI/bin:/c/Users/wx766/AppData/Local/Programs/Antigravity IDE/bin:/c/Users/wx766/.dotnet/tools:/c/Users/wx766/AppData/Local/Programs/windows-bridge:/c/Users/wx766/AppData/Local/Programs/Swift/Toolchains/6.4.1+Asserts/usr/bin:/c/Users/wx766/AppData/Local/Programs/Swift/Runtimes/6.4.1/usr/bin:/c/Users/wx766/sdk/go/bin:/c/Users/wx766/ezwinports/bin:/c/msys2/mingw64/bin:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ripgrep:/c/Users/wx766/AppData/Local/Programs/ZCode/resources/tools/ugrep:/c/Program Files/nodejs:/usr/bin/vendor_perl:/usr/bin/core_perl" && (cd bridge && go vet ./... && go test -race -count=1 ./...) && (cd tstunnel && go vet ./... && go test -count=1 ./...)
+  Verification:
+    verify-emulator:
+      text: 模拟器验证（沿用户指示；真机补验遗留）：带 tailscale 字段的连接资料导入 → 隧道配置写入并 Connected → 配对经隧道成功。本轮模拟器 uiautomator 不稳定未能完成 App 内全程取证——以 JVM 单测（解析/写入/卫生，281 项全绿）+ 三层既有实测证据（integration 的 tunnel.connected、spike 的 pair-through-tunnel、本变更 applyTo 代码路径）如实记录于 docs/qa/ts-token-profile/，App 内导入→配对全程列为真机补验第二项，不声称通过。
+      status: complete
+    verify-ready:
+      text: ready 无阻断。
+      status: complete
+      command: strict-spec-cli ready ts-token-profile
+    verify-change:
+      text: verify 通过。
+      status: complete
+      command: strict-spec-cli verify ts-token-profile
+testing_gates:
+  validation_task: test-full-regression
+  unit_test_task: test-unit

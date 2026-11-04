@@ -1,0 +1,42 @@
+schema: strict-spec-driven/question-list/v1
+schema_version: 1
+artifact_type: question_list
+schema_file: templates/strict-spec-driven/schemas/question-list.yaml
+change: security-completeness-review
+open: []
+resolved:
+  - id: requirement-problem
+    question: 为何需要？
+    context: milestone 收口。
+    answer: milestone done_criteria 要求安全与功能完整性评审报告与 QA 证据落 docs/qa/ 且未覆盖项显式列出。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-interpretation
+    question: 范围？
+    context: 边界。
+    answer: 两份评审文档（安全边界清单 + 功能对照），证据索引式，零代码改动。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-non-goals
+    question: 不做什么？
+    context: 边界。
+    answer: 不顺手修发现的问题（开后续变更）；不做新真机验证；不改代码与规格。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-outcome
+    question: 完成判据？
+    context: 验收。
+    answer: 两份文档每条结论可指到证据文件；未覆盖/有意不同显式列出；回归绿。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap
+  - id: requirement-trigger
+    question: 为何现在？
+    context: 排序。
+    answer: 五个功能/基础设施变更已全部归档，本变更是 milestone 最后一个 planned change。
+    status: resolved
+    kind: requirement
+    answered_by: roadmap

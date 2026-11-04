@@ -1,0 +1,24 @@
+schema: strict-spec-driven/change-design/v1
+schema_version: 1
+artifact_type: change_design
+schema_file: templates/strict-spec-driven/schemas/change-design.yaml
+change: ts-embed-spike
+approach:
+  - 按蓝本逐文件复制 tstunnel（tstunnel.go/interfaces.go/defaultroute_*/测试）到仓库根 tstunnel/，模块路径 app.deepseek.harness/tstunnel、hostinfo app 名 dsh-tstunnel、go.mod 钉 tailscale.com v1.94.1 与 golang.org/x/mobile tool 指令；构建脚本 build-aar.sh 适配本机 NDK（默认 28.2.13676358）输出 app/libs/tstunnel.aar（gitignore）。spike 仪器测试复制蓝本实证结论：Android 平台 SOCKS5 栈不做真实用户名/口令认证（直接发 user.name+空口令），故按 RFC 1928/1929 自实现拨号（用户名 tsnet+ProxyCredential），目标域名以 ADDRTYPE=0x03 交给内嵌节点 MagicDNS 解析；TLS(SSLSocketFactory) + 手写 HTTP/1.1 POST 完成 pair 与 session/list，org.json 解析断言 protocolVersion/deviceToken/routes 与 ok:true。仪器测试由参数驱动（authkey/origin/pairPath/pairingCode），无参数时跳过（JUnit assume），不进常规回归。
+decisions:
+  copy-battle-tested-blueprint:
+    decision: 逐文件复制 ../private-content-assistant/android/tstunnel（源自 mobile-manage，2026-09 真机验证）而非重写：XDG_CACHE_HOME 私有缓存规避 tsnet 日志状态 panic、RegisterInterfaceGetter 注入网卡快照绕 Android 11+ SELinux netlink EACCES、Up 60s 超时收敛、Loopback/ProxyCredential 拆方法适配 gomobile 单返回值限制。
+    rationale: milestone dependencies 明言『已真机验证，可复制而非重写』；这些坑（netlinkrib EACCES、no safe place to store log state、SetNetworkUp(false) 静默卡死）都是真机踩出来的，重写等于重踩。
+  spike-via-raw-socks-http:
+    decision: spike 不引入 OkHttp/代理栈：自实现 SOCKS5 拨号（RFC 1928/1929 真实认证 + 域名 ADDRTYPE=0x03 代理侧解析）+ SSLSocket + 手写最小 HTTP/1.1，直接在仪器测试内完成 pair 与 RPC。
+    rationale: 蓝本抓包实证 Android SocksSocketImpl 用户名/口令认证走 user.name+空口令、必被 tsnet 回环拒绝；域名必须交给内嵌节点 MagicDNS（系统 DNS 对 ts.net 报 UnknownHostException）。最小客户端把 spike 依赖压到零新增库，且这两条平台事实直接成为断言对象。
+  instrumented-arg-gated:
+    decision: 仪器测试以 instrumentation 参数驱动（authkey/origin/pairPath/pairingCode），参数缺失时 assumeTrue 跳过；AAR 以 androidTestImplementation files(libs/tstunnel.aar) 引入，缺席时仅 connectedAndroidTest 编译失败，assembleDebug 与单测回归不受影响。
+    rationale: spike 需要真实 tailnet 凭据与 host 现场参数，不能也不应无人值守进常规回归；AAR 不入库决定了主构建必须与其解耦。
+  no-delta-spec:
+    decision: 技术验证型 spike，specs/ 保持为空：产出是 Go 包装模块、构建脚本与参数驱动的仪器测试，不改任何 app 用户可观察行为或 bridge 规格；里程碑的功能性规格由后续 ts-token-profile / ts-tunnel-integration 变更携带。
+    rationale: spike 只验证连通与身份，不做 UI、不进常规回归、不改主代码路径；无主规格条目变化。
+alternatives: []
+risks:
+  - tagged auth key（tag:dsh-mobile）与真机是用户资源：缺失时 spike 运行任务被阻塞（真机验证为本变更核心，不可用模拟器替代——planned change 明言非模拟器），届时停下等用户提供，不得以伪造证据推进。
+  - gomobile bind 依赖外部网络拉取模块（GOPROXY 已按蓝本配置 goproxy.cn）；构建失败按脚本错误如实报告，不降级改编版本。
